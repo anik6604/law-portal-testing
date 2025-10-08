@@ -16,7 +16,7 @@ export default function LandingPage() {
 
       <main className="container">
         <div className="grid">
-          <TileCard title="AI Chatbot" disabled>
+          <TileCard title="AI Chatbot" to="/chatbot">
             Ask program questions, search candidates, and summarize resumes.
           </TileCard>
 
