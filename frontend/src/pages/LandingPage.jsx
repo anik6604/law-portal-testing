@@ -20,7 +20,7 @@ export default function LandingPage() {
             Ask program questions, search candidates, and summarize resumes.
           </TileCard>
 
-          <TileCard title="Adjunct Application Portal" disabled>
+          <TileCard title="Adjunct Application Portal" to="/apply">
             Review adjunct applications and manage candidate materials.
           </TileCard>
         </div>
