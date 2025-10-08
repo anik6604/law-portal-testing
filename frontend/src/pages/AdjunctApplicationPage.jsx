@@ -2,6 +2,19 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TopBar from "../components/TopBar.jsx";
 
+function normalizeToUS10(raw) {
+  // Keep digits only
+  let d = (raw || "").replace(/\D/g, "");
+
+  // If it starts with US country code and is long, drop the leading '1'
+  if (d.length > 10 && d.startsWith("1")) d = d.slice(1);
+
+  // Cap at 10 (ignores any extensions after the base number)
+  if (d.length > 10) d = d.slice(0, 10);
+
+  return d;
+}
+
 function formatPhone(digits) {
   // digits is numbers only, max 10
   const d = digits.slice(0, 10);
@@ -33,15 +46,13 @@ export default function AdjunctApplicationPage() {
   const phoneInputRef = useRef(null);
 
   const handlePhoneChange = (e) => {
-    // strip non-digits; cap at 10
-    const digitsOnly = (e.target.value || "").replace(/\D/g, "").slice(0, 10);
+    const digitsOnly = normalizeToUS10(e.target.value);
     setPhoneDigits(digitsOnly);
-    // clear any custom error as user types
     if (phoneInputRef.current) phoneInputRef.current.setCustomValidity("");
   };
 
   const handlePhonePaste = (e) => {
-    const pasted = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 10);
+    const pasted = normalizeToUS10(e.clipboardData.getData("text"));
     e.preventDefault();
     setPhoneDigits(pasted);
     if (phoneInputRef.current) phoneInputRef.current.setCustomValidity("");
@@ -54,10 +65,12 @@ export default function AdjunctApplicationPage() {
     // native validation for other fields
     if (!form.reportValidity()) return;
 
-    // hard check: phone must be exactly 10 digits
+    // hard check: phone must be exactly 10 digits (US)
     if (phoneDigits.length !== 10) {
       if (phoneInputRef.current) {
-        phoneInputRef.current.setCustomValidity("Enter a 10-digit phone number (e.g., 555-123-4567).");
+        phoneInputRef.current.setCustomValidity(
+          "Enter a valid US 10-digit phone number (e.g., 555-123-4567). Country codes and extensions are not allowed."
+        );
         phoneInputRef.current.reportValidity();
       }
       return;
@@ -71,8 +84,9 @@ export default function AdjunctApplicationPage() {
     setSubmitting(true);
 
     // ---- mock submission (replace with real API later) ----
-    // When you wire the API, send either the formatted value or normalized digits.
-    // For consistent DB format, use: const phoneForDb = formatPhone(phoneDigits);
+    // For consistent DB format later, choose one:
+    //   const phoneForDb = formatPhone(phoneDigits); // 555-123-4567  (readable)
+    //   const phoneForDb = phoneDigits;              // 5551234567    (normalized)
     await new Promise((r) => setTimeout(r, 800));
 
     setSubmitting(false);
@@ -133,6 +147,7 @@ export default function AdjunctApplicationPage() {
                   placeholder="jane.doe@tamu.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
 
@@ -149,9 +164,8 @@ export default function AdjunctApplicationPage() {
                   value={formatPhone(phoneDigits)}
                   onChange={handlePhoneChange}
                   onPaste={handlePhonePaste}
-                  // pattern requires exactly 10 digits (allows dashes due to our custom check anyway)
                   pattern="^\d{3}-\d{3}-\d{4}$"
-                  title="Enter a 10-digit phone number (e.g., 555-123-4567)."
+                  title="Enter a valid US 10-digit phone number (e.g., 555-123-4567)."
                   required
                 />
               </div>
