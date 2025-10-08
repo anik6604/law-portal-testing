@@ -1,6 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TopBar from "../components/TopBar.jsx";
+
+function formatPhone(digits) {
+  // digits is numbers only, max 10
+  const d = digits.slice(0, 10);
+  const p1 = d.slice(0, 3);
+  const p2 = d.slice(3, 6);
+  const p3 = d.slice(6, 10);
+  if (d.length <= 3) return p1;
+  if (d.length <= 6) return `${p1}-${p2}`;
+  return `${p1}-${p2}-${p3}`;
+}
 
 export default function AdjunctApplicationPage() {
   const navigate = useNavigate();
@@ -8,7 +19,8 @@ export default function AdjunctApplicationPage() {
   // form state
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  // store phone as digits-only for consistency; render formatted
+  const [phoneDigits, setPhoneDigits] = useState("");
   const [resume, setResume] = useState(null);
   const [cover, setCover] = useState(null);
   const [notes, setNotes] = useState("");
@@ -18,10 +30,39 @@ export default function AdjunctApplicationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false); // inline success banner
 
+  const phoneInputRef = useRef(null);
+
+  const handlePhoneChange = (e) => {
+    // strip non-digits; cap at 10
+    const digitsOnly = (e.target.value || "").replace(/\D/g, "").slice(0, 10);
+    setPhoneDigits(digitsOnly);
+    // clear any custom error as user types
+    if (phoneInputRef.current) phoneInputRef.current.setCustomValidity("");
+  };
+
+  const handlePhonePaste = (e) => {
+    const pasted = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 10);
+    e.preventDefault();
+    setPhoneDigits(pasted);
+    if (phoneInputRef.current) phoneInputRef.current.setCustomValidity("");
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const form = e.currentTarget;
+
+    // native validation for other fields
     if (!form.reportValidity()) return;
+
+    // hard check: phone must be exactly 10 digits
+    if (phoneDigits.length !== 10) {
+      if (phoneInputRef.current) {
+        phoneInputRef.current.setCustomValidity("Enter a 10-digit phone number (e.g., 555-123-4567).");
+        phoneInputRef.current.reportValidity();
+      }
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -30,14 +71,17 @@ export default function AdjunctApplicationPage() {
     setSubmitting(true);
 
     // ---- mock submission (replace with real API later) ----
+    // When you wire the API, send either the formatted value or normalized digits.
+    // For consistent DB format, use: const phoneForDb = formatPhone(phoneDigits);
     await new Promise((r) => setTimeout(r, 800));
 
     setSubmitting(false);
     setSuccess(true); // show inline banner
-    // optional: clear files/fields after success (keep email/phone if you prefer)
+
+    // optional: clear files/fields after success
     setFullName("");
     setEmail("");
-    setPhone("");
+    setPhoneDigits("");
     setResume(null);
     setCover(null);
     setNotes("");
@@ -89,7 +133,6 @@ export default function AdjunctApplicationPage() {
                   placeholder="jane.doe@tamu.edu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
                 />
               </div>
 
@@ -97,13 +140,18 @@ export default function AdjunctApplicationPage() {
                 <label htmlFor="phone">Phone Number</label>
                 <input
                   id="phone"
+                  ref={phoneInputRef}
                   className="input"
                   type="tel"
-                  placeholder="(555) 555-1234"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  pattern="^[0-9()+\\-\\.\\s]{7,}$"
-                  title="Enter a valid phone number"
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  placeholder="555-123-4567"
+                  value={formatPhone(phoneDigits)}
+                  onChange={handlePhoneChange}
+                  onPaste={handlePhonePaste}
+                  // pattern requires exactly 10 digits (allows dashes due to our custom check anyway)
+                  pattern="^\d{3}-\d{3}-\d{4}$"
+                  title="Enter a 10-digit phone number (e.g., 555-123-4567)."
                   required
                 />
               </div>
@@ -138,7 +186,7 @@ export default function AdjunctApplicationPage() {
                 id="notes"
                 className="input"
                 rows={5}
-                placeholder="E.g., referred by Dean Smith or other notes"
+                placeholder="E.g., referred by Dean or other notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
