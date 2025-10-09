@@ -157,10 +157,18 @@ src/
 ---
 
 ## Credits
-- Anik Momin – Developer and Project Lead  
-- Steven Vaughn – Project Sponsor, Director of Graduate Programs (TAMU Law)  
-- Dr. Pauline Wade – Course Instructor, Professor of Practice (CSCE)  
-- Brady Kincaid Testa – Teaching Assistant (CSCE)
+
+### Project Team
+- **Ryan Mohammadian** – Schedule Coordinator  
+- **Adeeb Momin** – Scope Coordinator  
+- **Anik Momin** – Risk Coordinator  
+- **Mitchell Good** – Stakeholder Management Coordinator  
+- **Abhinav Devireddy** – Quality Coordinator  
+
+### Faculty and Sponsors
+- **Steven Vaughn** – Project Sponsor, Director of Graduate Programs (TAMU Law)  
+- **Dr. Pauline Wade** – Course Instructor, Professor of Practice (CSCE)  
+- **Brady Kincaid Testa** – Teaching Assistant (CSCE)
 
 ## License
 This project is licensed under the **MIT License**.
