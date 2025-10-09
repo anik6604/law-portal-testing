@@ -65,8 +65,8 @@ export default function AdjunctApplicationPage() {
     // native validation for other fields
     if (!form.reportValidity()) return;
 
-    // hard check: phone must be exactly 10 digits (US)
-    if (phoneDigits.length !== 10) {
+    // hard check: phone must be exactly 10 digits (US) only if phone is provided
+    if (phoneDigits.length > 0 && phoneDigits.length !== 10) {
       if (phoneInputRef.current) {
         phoneInputRef.current.setCustomValidity(
           "Enter a valid US 10-digit phone number (e.g., 555-123-4567). Country codes and extensions are not allowed."
@@ -108,8 +108,8 @@ export default function AdjunctApplicationPage() {
         <header className="page-header">
           <h1 className="page-title">Adjunct Faculty Application</h1>
           <p className="page-subtitle">
-            Submit your information and required documents. <strong>All fields are required</strong>{" "}
-            except <em>Cover Letter</em> and <em>Comments / Notes</em>.
+            Submit your information and required documents. <strong>Name, Email, and Resume are required</strong>.{" "}
+            <em>Phone Number, Cover Letter, and Comments / Notes are optional</em>.
           </p>
         </header>
 
@@ -152,7 +152,7 @@ export default function AdjunctApplicationPage() {
               </div>
 
               <div className="form-row">
-                <label htmlFor="phone">Phone Number</label>
+                <label htmlFor="phone">Phone Number (optional)</label>
                 <input
                   id="phone"
                   ref={phoneInputRef}
@@ -166,7 +166,6 @@ export default function AdjunctApplicationPage() {
                   onPaste={handlePhonePaste}
                   pattern="^\d{3}-\d{3}-\d{4}$"
                   title="Enter a valid US 10-digit phone number (e.g., 555-123-4567)."
-                  required
                 />
               </div>
             </div>
