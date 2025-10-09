@@ -33,9 +33,11 @@ It is built with React and will later integrate with Texas A&M’s NetID system 
 
 ## Features
 
-### Modern React Frontend
-- Built with React + Vite + React Router  
-- Clean CSS with TAMU maroon theme  
+### Full Stack Application
+- **Frontend:** React + Vite + React Router  
+- **Backend:** Node.js + Express + PostgreSQL
+- **Deployment:** Docker Compose for database
+- Clean CSS with TAMU maroon theme and Oswald typography  
 
 ### Login Page
 - Simulated “Login with NetID” button  
@@ -47,8 +49,9 @@ It is built with React and will later integrate with Texas A&M’s NetID system 
   - Adjunct Application Portal (active and accessible)  
 
 ### Adjunct Application Page
-- Required fields: Full Name, Email, Phone, Resume (PDF)  
-- Optional fields: Cover Letter, Comments / Notes  
+- **Required fields:** Full Name, Email, Resume (PDF)  
+- **Optional fields:** Phone Number, Cover Letter, Comments / Notes
+- **Database Integration:** Applications are stored in PostgreSQL  
 - **Phone input:**  
   - Accepts digits only  
   - Auto-formats to `xxx-xxx-xxxx`  
@@ -64,30 +67,63 @@ It is built with React and will later integrate with Texas A&M’s NetID system 
 ---
 
 ## Requirements
-- Node.js v18 or later  
-- npm v9 or later (or Yarn / pnpm)  
-- Compatible with modern browsers: Chrome, Edge, Firefox, Safari  
-
-No backend or authentication setup is required yet.
+- **Node.js** v18 or later  
+- **npm** v9 or later (or Yarn / pnpm)  
+- **Docker** and Docker Compose
+- Compatible with modern browsers: Chrome, Edge, Firefox, Safari
 
 ---
 
 ## Installation
-```bash
-# Clone the repository
-git clone https://github.com/<your-repo-name>.git
-cd tamu-law-resume-portal
-cd frontend
-# Install dependencies
-npm install
 
-# Start the local development server
+### 1. Clone the Repository
+```bash
+git clone https://github.com/FA25-CSCE482-capstone/github-setup-tamu-law.git
+cd github-setup-tamu-law
+```
+
+### 2. Setup Environment Variables
+```bash
+# Frontend
+cd frontend
+cp .env.example .env
+
+# Server
+cd ../server
+cp .env.example .env
+```
+
+### 3. Start the Database (Docker)
+```bash
+# From project root
+docker-compose up -d
+
+# Verify it's running
+docker-compose ps
+```
+
+### 4. Install and Start Server
+```bash
+cd server
+npm install
 npm run dev
 ```
 
-Then open:
+Server will run on `http://localhost:4000`
 
-http://localhost:5173/
+### 5. Install and Start Frontend
+```bash
+# In a new terminal
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend will run on `http://localhost:5173`
+
+### Quick Test
+- Visit `http://localhost:4000/health` - Should show database connected
+- Visit `http://localhost:5173` - Should show the login page
 
 ## Project Structure
 ```plaintext

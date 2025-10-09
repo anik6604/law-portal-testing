@@ -44,6 +44,8 @@ export default function AdjunctApplicationPage() {
   const [success, setSuccess] = useState(false); // inline success banner
 
   const phoneInputRef = useRef(null);
+  const resumeInputRef = useRef(null);
+  const coverInputRef = useRef(null);
 
   const handlePhoneChange = (e) => {
     const digitsOnly = normalizeToUS10(e.target.value);
@@ -83,22 +85,61 @@ export default function AdjunctApplicationPage() {
     setShowConfirm(false);
     setSubmitting(true);
 
-    // ---- mock submission (replace with real API later) ----
-    // For consistent DB format later, choose one:
-    //   const phoneForDb = formatPhone(phoneDigits); // 555-123-4567  (readable)
-    //   const phoneForDb = phoneDigits;              // 5551234567    (normalized)
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      
+      // Format phone for database (readable format)
+      const phoneForDb = phoneDigits.length === 10 ? formatPhone(phoneDigits) : null;
 
-    setSubmitting(false);
-    setSuccess(true); // show inline banner
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('fullName', fullName);
+      formData.append('email', email);
+      if (phoneForDb) formData.append('phone', phoneForDb);
+      if (notes) formData.append('notes', notes);
+      
+      // Append files
+      if (resume) formData.append('resume', resume);
+      if (cover) formData.append('coverLetter', cover);
 
-    // optional: clear files/fields after success
-    setFullName("");
-    setEmail("");
-    setPhoneDigits("");
-    setResume(null);
-    setCover(null);
-    setNotes("");
+      const response = await fetch(`${API_URL}/api/applications`, {
+        method: 'POST',
+        body: formData, // Don't set Content-Type header - browser will set it with boundary
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit application');
+      }
+
+      setSubmitting(false);
+      setSuccess(true); // show inline banner
+
+      // Clear form fields after success
+      setFullName("");
+      setEmail("");
+      setPhoneDigits("");
+      setResume(null);
+      setCover(null);
+      setNotes("");
+      
+      // Clear file inputs
+      if (resumeInputRef.current) resumeInputRef.current.value = '';
+      if (coverInputRef.current) coverInputRef.current.value = '';
+
+      console.log('Application submitted successfully:', data);
+      if (data.extractedTextLength) {
+        console.log(`Extracted ${data.extractedTextLength} characters from PDF(s)`);
+      }
+      if (data.isUpdate) {
+        console.log('Updated existing application');
+      }
+    } catch (error) {
+      setSubmitting(false);
+      console.error('Error submitting application:', error);
+      alert(`Failed to submit application: ${error.message}`);
+    }
   };
 
   return (
@@ -174,6 +215,7 @@ export default function AdjunctApplicationPage() {
               <label htmlFor="resume">Upload Resume (PDF)</label>
               <input
                 id="resume"
+                ref={resumeInputRef}
                 className="input file"
                 type="file"
                 accept="application/pdf"
@@ -186,6 +228,7 @@ export default function AdjunctApplicationPage() {
               <label htmlFor="cover">Cover Letter (optional)</label>
               <input
                 id="cover"
+                ref={coverInputRef}
                 className="input file"
                 type="file"
                 accept="application/pdf"
