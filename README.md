@@ -77,7 +77,7 @@ No backend or authentication setup is required yet.
 # Clone the repository
 git clone https://github.com/<your-repo-name>.git
 cd tamu-law-resume-portal
-
+cd frontend
 # Install dependencies
 npm install
 
@@ -91,19 +91,46 @@ http://localhost:5173/
 
 ## Project Structure
 ```plaintext
-src/
+## Project Structure
+
+```plaintext
+frontend/
 │
-├── components/
-│   ├── TopBar.jsx                 # Shared top bar (TAMU Law branding and logout)
-│   └── TileCard.jsx               # Reusable card component for landing page tiles
+├── public/
+│   ├── hero-banner.jpg
+│   ├── tamu-law-wordmark.png
+│   └── vite.svg
 │
-├── pages/
-│   ├── LoginPage.jsx              # Mock NetID login page
-│   ├── LandingPage.jsx            # Main faculty portal landing page
-│   └── AdjunctApplicationPage.jsx # Application form (auto-formatting phone, confirm modal)
+├── src/
+│   │
+│   ├── assets/
+│   │   └── react.svg
+│   │
+│   ├── components/
+│   │   ├── ChatBot.css
+│   │   ├── ChatBot.jsx
+│   │   ├── TileCard.jsx
+│   │   └── TopBar.jsx
+│   │
+│   ├── pages/
+│   │   ├── AdjunctApplicationPage.jsx
+│   │   ├── LandingPage.jsx
+│   │   └── LoginPage.jsx
+│   │
+│   ├── App.css
+│   ├── App.jsx
+│   ├── index.css
+│   ├── main.jsx
+│   └── theme.css
 │
-├── App.jsx                        # Defines routes and navigation logic
-└── theme.css                      # Global colors, layout, and component styles
+├── .gitignore
+├── eslint.config.js
+├── index.html
+├── package.json
+├── package-lock.json
+├── vite.config.js
+└── README.md
+
 ```
 
 
@@ -186,5 +213,3 @@ For project information or future collaboration:
 - **Steven Vaughn** – [steven.vaughn@law.tamu.edu](mailto:steven.vaughn@law.tamu.edu)  
 - **Dr. Pauline Wade** – [paulinewade@tamu.edu](mailto:paulinewade@tamu.edu)  
 - **Brady Kincaid Testa** – [btesta@tamu.edu](mailto:btesta@tamu.edu)  
-
-
