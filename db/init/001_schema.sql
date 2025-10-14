@@ -13,5 +13,13 @@ CREATE TABLE IF NOT EXISTS resumes (
   resume_file VARCHAR(500),
   cover_letter_file VARCHAR(500),
   extracted_text TEXT,
+  embedding vector(384),
   uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Create pgvector extension for semantic search
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Create index for fast vector similarity search
+CREATE INDEX IF NOT EXISTS resumes_embedding_idx 
+  ON resumes USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);

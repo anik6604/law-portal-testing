@@ -1,21 +1,16 @@
 {
-  "name": "tamu-law-api",
+  "name": "tamu-law-adjunct-hiring",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node src/index.js"
+    "ingest": "node scripts/ingest-resumes.js"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",
-    "axios": "^1.12.2",
-    "cors": "^2.8.5",
     "dotenv": "^16.6.1",
-    "express": "^4.19.2",
     "fast-glob": "^3.3.3",
     "iconv-lite": "^0.7.0",
     "mammoth": "^1.11.0",
-    "multer": "^2.0.2",
-    "openai": "^6.3.0",
     "pdf-parse": "^2.2.9",
     "pg": "^8.16.3"
   }

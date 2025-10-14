@@ -7,7 +7,7 @@ export default function ChatBot() {
     {
       id: 1,
       role: "assistant",
-      content: "Hello! I'm your AI assistant. How can I help you today?",
+      content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
       timestamp: new Date(),
     },
   ]);
@@ -28,7 +28,7 @@ export default function ChatBot() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
@@ -63,18 +63,64 @@ export default function ChatBot() {
       
       // Capture the chat ID for the async response
       const chatIdForResponse = newChatId;
-      
+
       // Show typing indicator
       setIsTyping(true);
       
-      // Simulate AI response
-      setTimeout(() => {
+      // Call AI search API
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const response = await fetch(`${API_URL}/api/ai-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            course: messageContent,
+            description: ''
+          })
+        });
+
+        const data = await response.json();
         setIsTyping(false);
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to search candidates');
+        }
+
+        // Format AI response with candidate list (updated with new fields)
+        let aiContent = '';
+        if (data.candidates && data.candidates.length > 0) {
+          aiContent = `Found ${data.totalFound} candidate(s) who could teach "${data.course}":\n\n`;
+          
+          data.candidates.forEach((candidate, idx) => {
+            aiContent += `${idx + 1}. **${candidate.name}** (${candidate.email || 'N/A'})\n`;
+            if (candidate.note) {
+              aiContent += `   Note: ${candidate.note}\n`;
+            }
+            aiContent += `   Confidence: ${candidate.confidence || 'N/A'}/5\n`;
+            aiContent += `   Reasoning: ${candidate.reasoning}\n`;
+            if (candidate.evidence && candidate.evidence.length > 0) {
+              aiContent += `   Evidence: "${candidate.evidence.join('", "')}"\n`;
+            }
+            if (candidate.source && candidate.source.length > 0) {
+              aiContent += `   Source: ${candidate.source.join(', ')}\n`;
+            }
+            if (candidate.resumeFile) {
+              aiContent += `   Resume: ${candidate.resumeFile}\n`;
+            }
+            aiContent += `\n`;
+          });
+          
+          aiContent += `\nSearched ${data.searchedApplicants} applicant(s) in total.`;
+        } else {
+          aiContent = `No candidates found for "${data.course}". This could mean:\n- No applicants have submitted resumes yet\n- No applicants match this course topic\n\nTry a different course name or broader topic.`;
+        }
+
         const aiMessage = {
           id: updatedMessages.length + 1,
           role: "assistant",
-          content: "I'm processing your request. This is a placeholder response.",
+          content: aiContent,
           timestamp: new Date(),
+          candidates: data.candidates || []
         };
         const finalMessages = [...updatedMessages, aiMessage];
         
@@ -94,7 +140,30 @@ export default function ChatBot() {
           }
           return currentActiveChat;
         });
-      }, 1000);
+      } catch (error) {
+        setIsTyping(false);
+        console.error('AI search error:', error);
+        
+        const errorMessage = {
+          id: updatedMessages.length + 1,
+          role: "assistant",
+          content: `Sorry, I encountered an error: ${error.message}\n\nPlease make sure the backend server is running and try again.`,
+          timestamp: new Date(),
+        };
+        const finalMessages = [...updatedMessages, errorMessage];
+        
+        setChatMessages(prev => ({
+          ...prev,
+          [chatIdForResponse]: finalMessages,
+        }));
+        
+        setActiveChat(currentActiveChat => {
+          if (currentActiveChat === chatIdForResponse) {
+            setMessages(finalMessages);
+          }
+          return currentActiveChat;
+        });
+      }
     } else {
       // Update existing chat - capture the current active chat ID
       const chatIdForMessage = activeChat;
@@ -107,14 +176,60 @@ export default function ChatBot() {
       // Show typing indicator
       setIsTyping(true);
       
-      // Simulate AI response
-      setTimeout(() => {
+      // Call AI search API
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+        const response = await fetch(`${API_URL}/api/ai-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            course: messageContent,
+            description: ''
+          })
+        });
+
+        const data = await response.json();
         setIsTyping(false);
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to search candidates');
+        }
+
+        // Format AI response with candidate list (updated with new fields)
+        let aiContent = '';
+        if (data.candidates && data.candidates.length > 0) {
+          aiContent = `Found ${data.totalFound} candidate(s) who could teach "${data.course}":\n\n`;
+          
+          data.candidates.forEach((candidate, idx) => {
+            aiContent += `${idx + 1}. **${candidate.name}** (${candidate.email || 'N/A'})\n`;
+            if (candidate.note) {
+              aiContent += `   Note: ${candidate.note}\n`;
+            }
+            aiContent += `   Confidence: ${candidate.confidence || 'N/A'}/5\n`;
+            aiContent += `   Reasoning: ${candidate.reasoning}\n`;
+            if (candidate.evidence && candidate.evidence.length > 0) {
+              aiContent += `   Evidence: "${candidate.evidence.join('", "')}"\n`;
+            }
+            if (candidate.source && candidate.source.length > 0) {
+              aiContent += `   Source: ${candidate.source.join(', ')}\n`;
+            }
+            if (candidate.resumeFile) {
+              aiContent += `   Resume: ${candidate.resumeFile}\n`;
+            }
+            aiContent += `\n`;
+          });
+          
+          aiContent += `\nSearched ${data.searchedApplicants} applicant(s) in total.`;
+        } else {
+          aiContent = `No candidates found for "${data.course}". This could mean:\n- No applicants have submitted resumes yet\n- No applicants match this course topic\n\nTry a different course name or broader topic.`;
+        }
+
         const aiMessage = {
           id: updatedMessages.length + 1,
           role: "assistant",
-          content: "I'm processing your request. This is a placeholder response.",
+          content: aiContent,
           timestamp: new Date(),
+          candidates: data.candidates || []
         };
         const finalMessages = [...updatedMessages, aiMessage];
         
@@ -131,7 +246,30 @@ export default function ChatBot() {
           }
           return currentActiveChat;
         });
-      }, 1000);
+      } catch (error) {
+        setIsTyping(false);
+        console.error('AI search error:', error);
+        
+        const errorMessage = {
+          id: updatedMessages.length + 1,
+          role: "assistant",
+          content: `Sorry, I encountered an error: ${error.message}\n\nPlease make sure the backend server is running and try again.`,
+          timestamp: new Date(),
+        };
+        const finalMessages = [...updatedMessages, errorMessage];
+        
+        setChatMessages(prev => ({
+          ...prev,
+          [chatIdForMessage]: finalMessages,
+        }));
+        
+        setActiveChat(currentActiveChat => {
+          if (currentActiveChat === chatIdForMessage) {
+            setMessages(finalMessages);
+          }
+          return currentActiveChat;
+        });
+      }
     }
   };
 
@@ -141,7 +279,7 @@ export default function ChatBot() {
       {
         id: 1,
         role: "assistant",
-        content: "Hello! I'm your AI assistant. How can I help you today?",
+        content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
         timestamp: new Date(),
       },
     ];
@@ -160,7 +298,7 @@ export default function ChatBot() {
       {
         id: 1,
         role: "assistant",
-        content: "Hello! I'm your AI assistant. How can I help you today?",
+        content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
         timestamp: new Date(),
       },
     ];
@@ -291,7 +429,7 @@ export default function ChatBot() {
                 )}
               </div>
               <div className="message-content">
-                <div className="message-text">{message.content}</div>
+                <div className="message-text" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
                 <div className="message-time">{formatTime(message.timestamp)}</div>
               </div>
             </div>
