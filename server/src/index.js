@@ -5,7 +5,9 @@ import pg from 'pg';
 import multer from 'multer';
 import axios from 'axios';
 import { createRequire } from 'module';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateEmbedding } from './embeddings.js';
+import { getResumePresignedUrl } from './s3-utils.js';
 import OpenAI from 'openai';
 
 const require = createRequire(import.meta.url);
@@ -16,6 +18,11 @@ dotenv.config();
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Initialize S3 client
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-2',
 });
 
 const app = express();
@@ -55,6 +62,36 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+/**
+ * Upload a file to S3 and return the S3 URL
+ * @param {Buffer} fileBuffer - File buffer
+ * @param {string} fileName - Original filename
+ * @param {string} contentType - MIME type
+ * @returns {Promise<string>} - S3 URL
+ */
+async function uploadToS3(fileBuffer, fileName, contentType) {
+  const bucketName = process.env.S3_BUCKET_NAME || 'resume-storage-tamu-law';
+  const region = process.env.AWS_REGION || 'us-east-2';
+
+  // Use original filename (S3 will handle URL encoding)
+  const key = fileName;
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    Body: fileBuffer,
+    ContentType: contentType,
+  });
+
+  await s3Client.send(command);
+
+  // Return the S3 URL (not pre-signed, will be signed when retrieved)
+  const s3Url = `https://${bucketName}.s3.${region}.amazonaws.com/${fileName}`;
+  console.log(`Uploaded to S3: ${s3Url}`);
+  
+  return s3Url;
+}
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
@@ -168,15 +205,32 @@ app.post('/api/applications', upload.fields([
 
     const applicantId = applicantResult.rows[0].applicant_id;
 
-    // Insert resume/cover letter info with extracted text and embedding
-    // TODO: Replace filenames with S3 URLs later
+    // Upload files to S3 and get URLs
+    console.log('Uploading files to S3...');
+    const resumeS3Url = await uploadToS3(
+      resumeFile.buffer,
+      resumeFile.originalname,
+      resumeFile.mimetype
+    );
+    
+    let coverLetterS3Url = null;
+    if (coverLetterFile) {
+      coverLetterS3Url = await uploadToS3(
+        coverLetterFile.buffer,
+        coverLetterFile.originalname,
+        coverLetterFile.mimetype
+      );
+    }
+    console.log('Files uploaded to S3 successfully');
+
+    // Insert resume/cover letter info with S3 URLs, extracted text, and embedding
     await client.query(
       `INSERT INTO resumes (applicant_id, resume_file, cover_letter_file, extracted_text, embedding) 
        VALUES ($1, $2, $3, $4, $5)`,
       [
         applicantId,
-        resumeFile.originalname,
-        coverLetterFile?.originalname || null,
+        resumeS3Url,
+        coverLetterS3Url,
         combinedText || null,
         embedding ? JSON.stringify(embedding) : null
       ]
@@ -228,9 +282,18 @@ app.get('/api/applications', async (req, res) => {
       ORDER BY a.created_at DESC
     `);
 
+    // Generate pre-signed URLs for all resumes
+    const applicationsWithUrls = await Promise.all(
+      result.rows.map(async app => ({
+        ...app,
+        resume_file: await getResumePresignedUrl(app.resume_file),
+        cover_letter_file: await getResumePresignedUrl(app.cover_letter_file)
+      }))
+    );
+
     res.json({
       success: true,
-      applications: result.rows
+      applications: applicationsWithUrls
     });
   } catch (error) {
     console.error('Error fetching applications:', error);
@@ -269,9 +332,15 @@ app.get('/api/applications/:id', async (req, res) => {
       });
     }
 
+    const app = result.rows[0];
+
+    // Generate pre-signed URLs
+    app.resume_file = await getResumePresignedUrl(app.resume_file);
+    app.cover_letter_file = await getResumePresignedUrl(app.cover_letter_file);
+
     res.json({
       success: true,
-      application: result.rows[0]
+      application: app
     });
   } catch (error) {
     console.error('Error fetching application:', error);
@@ -380,9 +449,12 @@ RULE ENFORCEMENT (MANDATORY):
 - Teaching or academic experience alone does NOT imply topical expertise.
 - If resume lacks topic-relevant keywords (e.g., Cyber, Data, Privacy, Tax, Corporate, Environmental, Criminal, Trial), 
   confidence MUST NOT exceed 3.
-- Confidence 5 = explicit match (clear evidence in text showing direct expertise in the specific course topic).
-- Confidence 4 = strong but indirect relevance with transferable specialized experience.
-- Default to 3 if uncertain or only moderate keyword matches.
+- Confidence 5 = Rare, explicit topical match with extensive direct experience (e.g., "practiced cybersecurity law for 10+ years" or "published cybersecurity law scholar").
+- Confidence 4 = Clear direct experience in the specific topic area (e.g., "taught cyber law course" or "cybersecurity attorney with published work").
+- Confidence 3 = Indirect/transferable experience with some relevance (e.g., "data privacy attorney" for cyber law course, or moderate keyword overlap).
+- Confidence 2 = Weak connection, tangential at best (e.g., "general corporate attorney" for cyber law).
+- Confidence 1 = Minimal to no correlation with course topic.
+- Default to 3 for indirect/transferable skills; use 4+ only for direct experience.
 - Reduce confidence by 2 points if reasoning relies only on general teaching experience without topic specialization.
 - Do not include candidates whose only qualification is that they have taught law before.
 - Exclude non-law candidates entirely.
@@ -390,7 +462,7 @@ RULE ENFORCEMENT (MANDATORY):
 
 CONFIDENCE SCALE (STRICT):
 5 = Rare. Explicit topical match with detailed evidence (e.g., "practiced cybersecurity law for 10 years")
-4 = Strong related background with clear transferable specialization (e.g., "data privacy attorney")
+4 = Direct experience in the specific topic area required, not just related fields (e.g., "taught cyber law course" or "cybersecurity attorney with published work")
 3 = Moderate relevance, some keywords present, or general legal background with partial overlap
 2 = Weak indirect evidence or tangential connection
 1 = Minimal relation
@@ -478,37 +550,44 @@ Return JSON only: {"candidates": [{"id": "...", "reason": "...", "confidence": 1
     // Step 6: Enrich candidates by ID (much more stable than email matching)
     const idToRow = new Map(result.rows.map(r => [String(r.applicant_id), r]));
 
-    const enrichedCandidates = candidates
-      .map(c => {
-        const row = idToRow.get(String(c.id));
-        if (!row) {
-          console.warn(`Model returned ID ${c.id} which is not in the result set`);
-          return null; // model picked an ID that isn't in this batch
-        }
+    const enrichedCandidates = await Promise.all(
+      candidates
+        .map(async c => {
+          const row = idToRow.get(String(c.id));
+          if (!row) {
+            console.warn(`Model returned ID ${c.id} which is not in the result set`);
+            return null; // model picked an ID that isn't in this batch
+          }
 
-        const conf = Number.isFinite(c.confidence) ? c.confidence : 0;
+          const conf = Number.isFinite(c.confidence) ? c.confidence : 0;
 
-        return {
-          id: row.applicant_id,
-          name: row.name || '(name missing)',
-          email: row.email || null,
-          note: row.note || '',
-          reasoning: (c.reason || '').slice(0, 200),
-          confidence: conf,
-          resumeLink: `/api/applications/${row.applicant_id}`,
-          resumeFile: row.resume_file
-        };
-      })
+          // Generate pre-signed URL for resume (7-day expiration)
+          const presignedUrl = await getResumePresignedUrl(row.resume_file);
+
+          return {
+            id: row.applicant_id,
+            name: row.name || '(name missing)',
+            email: row.email || null,
+            note: row.note || '',
+            reasoning: (c.reason || '').slice(0, 200),
+            confidence: conf,
+            resumeLink: `/api/applications/${row.applicant_id}`,
+            resumeFile: presignedUrl // Pre-signed S3 URL (expires in 7 days)
+          };
+        })
+    );
+
+    const filteredCandidates = enrichedCandidates
       .filter(Boolean)
-      .filter(c => c.confidence > 2) // Filter out low confidence matches (≤2)
+      .filter(c => c.confidence >= 4) // Only show high confidence matches (4+)
       .sort((a, b) => b.confidence - a.confidence);
 
-    console.log(`AI Search complete: ${enrichedCandidates.length} qualified candidates found (confidence > 2, ranked by score)`);
+    console.log(`AI Search complete: ${filteredCandidates.length} qualified candidates found (confidence >= 4, ranked by score)`);
 
     res.json({
       success: true,
-      candidates: enrichedCandidates,
-      totalFound: enrichedCandidates.length,
+      candidates: filteredCandidates,
+      totalFound: filteredCandidates.length,
       searchedApplicants: result.rows.length,
       course: course,
       description: description || null

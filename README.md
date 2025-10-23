@@ -438,6 +438,42 @@ docker-compose up -d
 docker-compose ps
 ```
 
+### Quick start for teammates (reproduce DB with sample data)
+
+If your teammates have the same `docker-compose.yml`, they can reproduce the exact database state used in this repo by using the SQL dump placed in `db/init/002_data.sql`.
+
+1. Make sure the dump file is present in the repo (it should be at `db/init/002_data.sql`).
+2. Remove any existing DB volume (this will delete local data):
+
+```bash
+docker-compose down -v
+```
+
+3. Start the stack. On first start the Postgres image will run all scripts in `db/init/` and initialize with the schema + data from `002_data.sql`:
+
+```bash
+docker-compose up -d
+```
+
+4. Verify DB is healthy and the data is present:
+
+```bash
+docker-compose exec db psql -U tamu -d law_portal -c "SELECT COUNT(*) FROM applicants;"
+docker-compose exec db psql -U tamu -d law_portal -c "SELECT COUNT(*) FROM resumes;"
+```
+
+Notes:
+- This approach requires a fresh DB volume because the docker-entrypoint-initdb.d scripts only run on first initialization. If you already have a database volume you want to keep, use the import method below instead.
+- The dump includes extension creation for `vector` (pgvector). The Docker image used is `pgvector/pgvector:pg16`.
+
+Alternative: import the dump manually into a running DB (no volume reset):
+
+```bash
+# from the project root after starting just the db container
+docker-compose exec -T db psql -U tamu -d law_portal < resume_full_dump.sql
+```
+
+
 The database uses the **pgvector/pgvector:pg16** image with vector extensions enabled.
 
 ### 4. Install and Start Server

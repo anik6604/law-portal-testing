@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 import TopBar from "./TopBar.jsx";
 import "./ChatBot.css";
 
@@ -105,7 +106,7 @@ export default function ChatBot() {
               aiContent += `   Source: ${candidate.source.join(', ')}\n`;
             }
             if (candidate.resumeFile) {
-              aiContent += `   Resume: ${candidate.resumeFile}\n`;
+              aiContent += `   📄 [View Resume](${candidate.resumeFile})\n`;
             }
             aiContent += `\n`;
           });
@@ -214,7 +215,7 @@ export default function ChatBot() {
               aiContent += `   Source: ${candidate.source.join(', ')}\n`;
             }
             if (candidate.resumeFile) {
-              aiContent += `   Resume: ${candidate.resumeFile}\n`;
+              aiContent += `   📄 [View Resume](${candidate.resumeFile})\n`;
             }
             aiContent += `\n`;
           });
@@ -429,7 +430,15 @@ export default function ChatBot() {
                 )}
               </div>
               <div className="message-content">
-                <div className="message-text" style={{ whiteSpace: 'pre-wrap' }}>{message.content}</div>
+                <div className="message-text" style={{ whiteSpace: 'pre-wrap' }}>
+                  <ReactMarkdown
+                    components={{
+                      a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" style={{color: '#500000', textDecoration: 'underline'}} />
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
                 <div className="message-time">{formatTime(message.timestamp)}</div>
               </div>
             </div>

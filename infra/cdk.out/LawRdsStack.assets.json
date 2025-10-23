@@ -1,0 +1,21 @@
+{
+  "version": "48.0.0",
+  "files": {
+    "f64e29085e45413d35cc6adbe4a9932f36097df83320a1ca90d84cb8b69c0bcb": {
+      "displayName": "LawRdsStack Template",
+      "source": {
+        "path": "LawRdsStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "176376308053-us-east-1-a67fcdb1": {
+          "bucketName": "cdk-hnb659fds-assets-176376308053-us-east-1",
+          "objectKey": "f64e29085e45413d35cc6adbe4a9932f36097df83320a1ca90d84cb8b69c0bcb.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::176376308053:role/cdk-hnb659fds-file-publishing-role-176376308053-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

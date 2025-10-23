@@ -12,6 +12,14 @@ pnpm-debug.log*
 .env.test.local
 .env.production.local
 
+# AWS credentials and config
+.aws/
+credentials
+config
+*.pem
+*.key
+*.cert
+
 # Build outputs
 dist/
 build/
@@ -92,7 +100,11 @@ Cvs/
 *.key
 *.cert
 
-# Scripts that may contain test data
+# Database dumps with sensitive data
+*.sql
+!db/init/001_schema.sql
+
+# Scripts that may contain test data or credentials
 scripts/ingest-*.js
 scripts/test-*.js
 scripts/*-duplicates.sql

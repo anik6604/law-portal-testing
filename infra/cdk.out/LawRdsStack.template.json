@@ -1,0 +1,209 @@
+{
+ "Resources": {
+  "RdsSecurityGroup632A77E4": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Allow Postgres from dev IP",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "165.91.13.151/32",
+      "Description": "Allow Postgres from dev IP",
+      "FromPort": 5432,
+      "IpProtocol": "tcp",
+      "ToPort": 5432
+     }
+    ],
+    "VpcId": "vpc-0d970f0c0ed85cf4b"
+   },
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/RdsSecurityGroup/Resource"
+   }
+  },
+  "DbSecret685A0FA5": {
+   "Type": "AWS::SecretsManager::Secret",
+   "Properties": {
+    "GenerateSecretString": {
+     "ExcludePunctuation": true,
+     "GenerateStringKey": "password",
+     "PasswordLength": 24,
+     "SecretStringTemplate": "{\"username\":\"tamu\"}"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/DbSecret/Resource"
+   }
+  },
+  "DbSecretAttachment0609CE05": {
+   "Type": "AWS::SecretsManager::SecretTargetAttachment",
+   "Properties": {
+    "SecretId": {
+     "Ref": "DbSecret685A0FA5"
+    },
+    "TargetId": {
+     "Ref": "LawPostgres41BEC120"
+    },
+    "TargetType": "AWS::RDS::DBInstance"
+   },
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/DbSecret/Attachment/Resource"
+   }
+  },
+  "DbSubnetGroup": {
+   "Type": "AWS::RDS::DBSubnetGroup",
+   "Properties": {
+    "DBSubnetGroupDescription": "Subnet group for law portal rds",
+    "SubnetIds": [
+     "subnet-07e4a2dcffd700fec",
+     "subnet-0ab34ddca84a6ff03",
+     "subnet-000a4e26342d868b9",
+     "subnet-0ac0f93425c7c4f13",
+     "subnet-05f6bb077ae6763c7",
+     "subnet-0e79ac3ecc61f0889"
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/DbSubnetGroup/Default"
+   }
+  },
+  "LawPostgresSubnetGroup292573C0": {
+   "Type": "AWS::RDS::DBSubnetGroup",
+   "Properties": {
+    "DBSubnetGroupDescription": "Subnet group for LawPostgres database",
+    "SubnetIds": [
+     "subnet-07e4a2dcffd700fec",
+     "subnet-0ab34ddca84a6ff03",
+     "subnet-000a4e26342d868b9",
+     "subnet-0ac0f93425c7c4f13",
+     "subnet-05f6bb077ae6763c7",
+     "subnet-0e79ac3ecc61f0889"
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/LawPostgres/SubnetGroup/Default"
+   }
+  },
+  "LawPostgres41BEC120": {
+   "Type": "AWS::RDS::DBInstance",
+   "Properties": {
+    "AllocatedStorage": "20",
+    "CopyTagsToSnapshot": true,
+    "DBInstanceClass": "db.t3.micro",
+    "DBName": "law_portal",
+    "DBSubnetGroupName": {
+     "Ref": "LawPostgresSubnetGroup292573C0"
+    },
+    "DeletionProtection": false,
+    "Engine": "postgres",
+    "EngineVersion": "16",
+    "MasterUserPassword": {
+     "Fn::Join": [
+      "",
+      [
+       "{{resolve:secretsmanager:",
+       {
+        "Ref": "DbSecret685A0FA5"
+       },
+       ":SecretString:password::}}"
+      ]
+     ]
+    },
+    "MasterUsername": {
+     "Fn::Join": [
+      "",
+      [
+       "{{resolve:secretsmanager:",
+       {
+        "Ref": "DbSecret685A0FA5"
+       },
+       ":SecretString:username::}}"
+      ]
+     ]
+    },
+    "PubliclyAccessible": true,
+    "StorageType": "gp2",
+    "VPCSecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "RdsSecurityGroup632A77E4",
+       "GroupId"
+      ]
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/LawPostgres/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/12PTQrCQAyFz+J+OsrcQC2IK8G6lzSNddROJckoUubu0lZFXb2ffPCIs87N7GwCd8mwOmcXX9quUMCz2ZK0kZEM3GXfETrbFYSRvT5W3MarWR7CT5GMEDKpNBCgJh54Jn2BvRtlB1yTzlUBjw2FL+D/kgxXYrsiloH0s5ovvoscFEoQWgdRCEgj8U4p9XkT9Ro1mdBWZE8yvTlnh79P4n3GMahvyG5HfQLkeGSMFAEAAA=="
+   },
+   "Metadata": {
+    "aws:cdk:path": "LawRdsStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "DBEndpoint": {
+   "Value": {
+    "Fn::GetAtt": [
+     "LawPostgres41BEC120",
+     "Endpoint.Address"
+    ]
+   }
+  },
+  "SecretArn": {
+   "Value": {
+    "Ref": "DbSecret685A0FA5"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
