@@ -16,8 +16,17 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div style={{ minHeight: "calc(100vh - 64px)", display: "grid", placeItems: "center", padding: "24px" }}>
-        <div className="card" style={{ width: "100%", maxWidth: 680, padding: 32 }}>
+      <div style={{ 
+        minHeight: "calc(100vh - 64px)", 
+        display: "grid", 
+        placeItems: "center", 
+        padding: "24px",
+        backgroundImage: "url('/law-school-bg.png')",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat"
+      }}>
+        <div className="card" style={{ width: "100%", maxWidth: 680, padding: 32, backgroundColor: "rgba(255, 255, 255, 0.95)" }}>
           <h1 style={{ margin: 0, fontSize: "1.75rem" }}>
             Welcome to TAMU Law Resume Portal
           </h1>
