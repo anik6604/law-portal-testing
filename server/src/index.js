@@ -440,12 +440,14 @@ Analyze the candidate list and return ONLY valid JSON:
 
 {
   "candidates": [
-    {"id": "<string>", "reason": "<=120 chars>", "confidence": <1-5>}
+    {"id": "<string>", "reason": "<comprehensive multi-paragraph summary - NO length limit - include ALL: jobs with titles/companies/dates, ALL publications, teaching history, certifications, notable cases, awards, specializations>", "confidence": <1-5>, "lawSchool": "<law school name or 'Not specified'>"}
   ]
 }
 
 RULE ENFORCEMENT (MANDATORY):
-- Each candidate MUST have id, reason, and confidence.
+- Each candidate MUST have id, reason, confidence, and lawSchool.
+- Extract law school name from resume.
+- Provide COMPREHENSIVE reasoning with NO character limit including: ALL job titles/companies/dates, ALL publications with titles, ALL teaching experience, years of practice, notable cases/clients, certifications, bar admissions, awards, speaking engagements, professional roles - BE THOROUGH.
 - Teaching or academic experience alone does NOT imply topical expertise.
 - If resume lacks topic-relevant keywords (e.g., Cyber, Data, Privacy, Tax, Corporate, Environmental, Criminal, Trial), 
   confidence MUST NOT exceed 3.
@@ -488,11 +490,12 @@ Critical Rules:
 - Generic teaching experience ≠ topical expertise. Do not boost confidence for teaching alone.
 - Confidence 5 is RARE and requires explicit evidence of direct expertise.
 - Default to confidence 3 or 4 for most candidates.
+- Provide EXTENSIVE details: ALL jobs, ALL publications, ALL experience - more is better.
 
 Batch ${batchIdx + 1}/${batches.length} - Analyze these candidates:
 ${batchContext}
 
-Return JSON only: {"candidates": [{"id": "...", "reason": "...", "confidence": 1-5}]}`;
+Return JSON only: {"candidates": [{"id": "...", "reason": "<EXTENSIVE multi-paragraph summary with ALL relevant details>", "confidence": 1-5, "lawSchool": "..."}]}`;
 
       console.log(`Batch ${batchIdx + 1}: Prompt length ${USER_PROMPT.length} chars, processing ${batch.length} candidates`);
 
@@ -505,7 +508,7 @@ Return JSON only: {"candidates": [{"id": "...", "reason": "...", "confidence": 1
           ],
           response_format: { type: "json_object" },
           temperature: 0,
-          max_tokens: 1500
+          max_tokens: 8000  // Massive increase for comprehensive summaries
         });
 
         const aiResponse = completion.choices[0].message.content;
@@ -569,7 +572,7 @@ Return JSON only: {"candidates": [{"id": "...", "reason": "...", "confidence": 1
             name: row.name || '(name missing)',
             email: row.email || null,
             note: row.note || '',
-            reasoning: (c.reason || '').slice(0, 200),
+            reasoning: c.reason || '',  // Full summary, no truncation
             confidence: conf,
             resumeLink: `/api/applications/${row.applicant_id}`,
             resumeFile: presignedUrl // Pre-signed S3 URL (expires in 7 days)
