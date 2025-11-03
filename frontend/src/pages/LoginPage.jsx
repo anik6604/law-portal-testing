@@ -1,11 +1,9 @@
-import { useNavigate } from "react-router-dom";
+import { API_URL } from "../utils/auth.js";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
-
-  const onLogin = (e) => {
-    e.preventDefault();
-    navigate("/home");
+  const handleLogin = () => {
+    // Redirect to Azure AD SSO login
+    window.location.href = `${API_URL}/auth/login`;
   };
 
   return (
@@ -28,21 +26,23 @@ export default function LoginPage() {
       }}>
         <div className="card" style={{ width: "100%", maxWidth: 680, padding: 32, backgroundColor: "rgba(255, 255, 255, 0.95)" }}>
           <h1 style={{ margin: 0, fontSize: "1.75rem" }}>
-            Welcome to TAMU Law Resume Portal
+            TAMU Law Faculty Portal
           </h1>
 
           <p style={{ margin: "8px 0 22px 0", color: "#4b5563", fontSize: "1.1rem" }}>
-            Please sign in with your <strong>NETID</strong> to continue.
+            Please sign in with your <strong>TAMU NetID</strong> to access the faculty candidate search system.
           </p>
 
-          <form onSubmit={onLogin}>
-            <button type="submit" className="btn maroon" style={{ width: "100%", height: 56, fontSize: "1.05rem" }}>
-              Login with NETID
-            </button>
-          </form>
+          <button 
+            onClick={handleLogin} 
+            className="btn maroon" 
+            style={{ width: "100%", height: 56, fontSize: "1.05rem" }}
+          >
+            Sign In with TAMU NetID
+          </button>
 
-          <div style={{ marginTop: 18, fontSize: 12, color: "#6b7280" }}>
-            <em>Note:</em> In production this button redirects to the official TAMU SSO (CAS/SAML/OIDC) portal, then returns you to the landing page.
+          <div style={{ marginTop: 18, fontSize: 14, color: "#6b7280", textAlign: "center" }}>
+            You will be redirected to the TAMU authentication portal
           </div>
         </div>
       </div>

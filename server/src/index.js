@@ -9,6 +9,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { generateEmbedding } from './embeddings.js';
 import { getResumePresignedUrl } from './s3-utils.js';
 import OpenAI from 'openai';
+import { configureAuth, getMsalInstance, getAuthConfig, requireTAMUEmail } from './auth.js';
 
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
@@ -59,9 +60,15 @@ const upload = multer({
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5174',
+  credentials: true // Allow cookies for session management
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Configure Azure AD authentication
+const authEnabled = configureAuth(app);
 
 /**
  * Upload a file to S3 and return the S3 URL
@@ -93,6 +100,119 @@ async function uploadToS3(fileBuffer, fileName, contentType) {
   return s3Url;
 }
 
+// ============================================
+// AUTHENTICATION ROUTES (MSAL-based)
+// ============================================
+
+// Check authentication status
+app.get('/auth/status', (req, res) => {
+  if (req.session && req.session.user) {
+    res.json({
+      authenticated: true,
+      user: {
+        name: req.session.user.name,
+        email: req.session.user.email,
+        netId: req.session.user.netId
+      }
+    });
+  } else {
+    res.json({
+      authenticated: false
+    });
+  }
+});
+
+// Initiate Azure AD login
+app.get('/auth/login', async (req, res) => {
+  const msalInstance = getMsalInstance();
+  const authConfig = getAuthConfig();
+
+  if (!msalInstance || !authConfig) {
+    return res.status(500).json({ error: 'Authentication not configured' });
+  }
+
+  // Generate auth code URL for Azure AD login
+  const authCodeUrlParameters = {
+    scopes: ['user.read', 'openid', 'profile', 'email'],
+    redirectUri: process.env.AZURE_AD_REDIRECT_URI,
+  };
+
+  try {
+    const authCodeUrl = await msalInstance.getAuthCodeUrl(authCodeUrlParameters);
+    res.redirect(authCodeUrl);
+  } catch (error) {
+    console.error('Error generating auth URL:', error);
+    res.status(500).json({ error: 'Failed to initiate login' });
+  }
+});
+
+// Azure AD callback handler
+app.get('/auth/callback', async (req, res) => {
+  const msalInstance = getMsalInstance();
+  
+  if (!msalInstance) {
+    return res.status(500).json({ error: 'Authentication not configured' });
+  }
+
+  const tokenRequest = {
+    code: req.query.code,
+    scopes: ['user.read', 'openid', 'profile', 'email'],
+    redirectUri: process.env.AZURE_AD_REDIRECT_URI,
+  };
+
+  try {
+    // Exchange authorization code for tokens
+    const response = await msalInstance.acquireTokenByCode(tokenRequest);
+    
+    // Extract user information from token
+    const user = {
+      id: response.account.homeAccountId,
+      email: response.account.username,
+      name: response.account.name,
+      netId: response.account.username.split('@')[0], // Extract NetID
+      tenantId: response.account.tenantId
+    };
+
+    // Store user in session
+    req.session.user = user;
+    req.session.tokenCache = response;
+
+    console.log('✅ User authenticated:', user.email);
+
+    // Redirect to frontend home page
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    res.redirect(`${frontendUrl}/home`);
+  } catch (error) {
+    console.error('Error during token acquisition:', error);
+    res.redirect('/auth/login');
+  }
+});
+
+// Logout
+app.get('/auth/logout', (req, res) => {
+  const user = req.session?.user;
+  
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+    }
+    
+    console.log(`👋 User logged out: ${user?.email || 'unknown'}`);
+    
+    // Redirect to Azure AD logout to clear Azure session, then back to login page
+    const tenantId = process.env.AZURE_AD_TENANT_ID;
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const loginPageUrl = `${frontendUrl}/login`;
+    const logoutUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(loginPageUrl)}`;
+    
+    res.redirect(logoutUrl);
+  });
+});
+
+// ============================================
+// PUBLIC ROUTES
+// ============================================
+
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
@@ -100,7 +220,8 @@ app.get('/health', async (req, res) => {
     res.json({
       status: 'healthy',
       database: 'connected',
-      timestamp: result.rows[0].now
+      timestamp: result.rows[0].now,
+      authEnabled: authEnabled
     });
   } catch (error) {
     res.status(500).json({
@@ -351,8 +472,12 @@ app.get('/api/applications/:id', async (req, res) => {
   }
 });
 
+// ============================================
+// PROTECTED ROUTES (TAMU Authentication Required)
+// ============================================
+
 // AI-powered candidate search using Gemma 3
-app.post('/api/ai-search', async (req, res) => {
+app.post('/api/ai-search', requireTAMUEmail, async (req, res) => {
   const { course, description } = req.body;
 
   if (!course) {
@@ -451,23 +576,50 @@ RULE ENFORCEMENT (MANDATORY):
 - Teaching or academic experience alone does NOT imply topical expertise.
 - If resume lacks topic-relevant keywords (e.g., Cyber, Data, Privacy, Tax, Corporate, Environmental, Criminal, Trial), 
   confidence MUST NOT exceed 3.
-- Confidence 5 = Rare, explicit topical match with extensive direct experience (e.g., "practiced cybersecurity law for 10+ years" or "published cybersecurity law scholar").
-- Confidence 4 = Clear direct experience in the specific topic area (e.g., "taught cyber law course" or "cybersecurity attorney with published work").
-- Confidence 3 = Indirect/transferable experience with some relevance (e.g., "data privacy attorney" for cyber law course, or moderate keyword overlap).
-- Confidence 2 = Weak connection, tangential at best (e.g., "general corporate attorney" for cyber law).
-- Confidence 1 = Minimal to no correlation with course topic.
-- Default to 3 for indirect/transferable skills; use 4+ only for direct experience.
-- Reduce confidence by 2 points if reasoning relies only on general teaching experience without topic specialization.
-- Do not include candidates whose only qualification is that they have taught law before.
 - Exclude non-law candidates entirely.
 - Output ONLY JSON, no text or markdown.
 
-CONFIDENCE SCALE (STRICT):
-5 = Rare. Explicit topical match with detailed evidence (e.g., "practiced cybersecurity law for 10 years")
-4 = Direct experience in the specific topic area required, not just related fields (e.g., "taught cyber law course" or "cybersecurity attorney with published work")
-3 = Moderate relevance, some keywords present, or general legal background with partial overlap
-2 = Weak indirect evidence or tangential connection
-1 = Minimal relation
+CONFIDENCE SCALE (STRICT - ENFORCE RIGOROUSLY):
+5 = EXTREMELY RARE. Reserved for nationally recognized experts with 10+ years direct practice/teaching/publishing in this EXACT field. Must have multiple publications OR landmark cases OR taught this exact course multiple times.
+   Examples: "25 years environmental litigation with Supreme Court cases" + "teaches land-use law" + "published environmental law articles"
+
+4 = DIRECT EXPERTISE REQUIRED. Candidate must have AT LEAST ONE of these in the EXACT topic area:
+   a) Published academic work (articles/books) specifically on this topic
+   b) Taught this specific course (not just general law teaching)
+   c) Practiced 5+ years with this topic as PRIMARY focus of their practice (not secondary duty)
+   Examples that QUALIFY for 4:
+   - "6 years environmental insurance coverage attorney" + "PFAS litigation expert"
+   - "DOI attorney advising on public lands law for 5+ years"
+   - "Taught Constitutional Law course at law school"
+   Examples that DO NOT QUALIFY for 4:
+   - "Corporate counsel who handled environmental compliance among other duties"
+   - "General litigator who had some environmental cases"
+   - "Teaches cybersecurity law" when searching for environmental law
+
+3 = TRANSFERABLE SKILLS. General legal background with some relevance but NO direct expertise:
+   - Topic appears in resume but not as primary focus
+   - Related field experience (e.g., "data privacy attorney" for cyber law course)
+   - Generic litigation experience with occasional topic involvement
+   - Compliance role where topic is ONE OF MANY duties
+   Examples: "Complex civil litigation including environmental compliance matters"
+
+2 = TANGENTIAL CONNECTION. Topic mentioned in passing or very weak correlation:
+   - Corporate role with topic as minor/secondary duty
+   - No publications, no teaching, no primary practice in topic
+   - Keyword appears but without substantive evidence
+   Examples: "General corporate counsel with some environmental compliance responsibilities"
+
+1 = MINIMAL TO NO RELATION. Almost no connection to topic area.
+
+CRITICAL ENFORCEMENT RULES:
+- Corporate compliance roles: Default to confidence 2-3 UNLESS environmental/topic work is explicitly stated as PRIMARY role
+- Teaching experience: Only boost confidence if teaching THIS SPECIFIC TOPIC (not just general law teaching)
+- Publications: Weight heavily - published work in topic area is strong signal for confidence 4+
+- Generic litigation: Default to confidence 3 unless topic is demonstrated as PRIMARY practice area
+- Secondary duties: If topic appears as "among other responsibilities" → confidence 2-3 maximum
+- Reduce confidence by 2 points if reasoning relies only on general teaching/practice without topic specialization
+- Do not include candidates whose only qualification is that they have taught law before
+- When in doubt between two confidence levels, choose the LOWER one
 
 Always ensure valid JSON and populate all fields for every record.`;
 
@@ -615,6 +767,168 @@ Return JSON only: {"candidates": [{"id": "...", "reason": "<EXTENSIVE multi-para
 
     res.status(500).json({
       error: 'Failed to perform AI search',
+      details: error.message
+    });
+  }
+});
+
+// ============================================
+// CHAT HISTORY API (TAMU Authentication Required)
+// ============================================
+
+// Get all chat sessions (shared across all faculty)
+app.get('/api/chat-sessions', requireTAMUEmail, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        session_id,
+        title,
+        created_by_email,
+        created_by_name,
+        created_at,
+        updated_at,
+        (SELECT COUNT(*) FROM chat_messages WHERE session_id = chat_sessions.session_id) as message_count
+      FROM chat_sessions
+      ORDER BY updated_at DESC
+    `);
+
+    res.json({
+      success: true,
+      sessions: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching chat sessions:', error);
+    res.status(500).json({
+      error: 'Failed to fetch chat sessions',
+      details: error.message
+    });
+  }
+});
+
+// Get messages for a specific chat session
+app.get('/api/chat-sessions/:sessionId/messages', requireTAMUEmail, async (req, res) => {
+  const { sessionId } = req.params;
+
+  try {
+    const result = await pool.query(`
+      SELECT 
+        message_id,
+        session_id,
+        role,
+        content,
+        created_at
+      FROM chat_messages
+      WHERE session_id = $1
+      ORDER BY created_at ASC
+    `, [sessionId]);
+
+    res.json({
+      success: true,
+      messages: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching chat messages:', error);
+    res.status(500).json({
+      error: 'Failed to fetch chat messages',
+      details: error.message
+    });
+  }
+});
+
+// Create a new chat session
+app.post('/api/chat-sessions', requireTAMUEmail, async (req, res) => {
+  const { title } = req.body;
+  const user = req.session.user;
+
+  if (!title) {
+    return res.status(400).json({
+      error: 'Chat title is required'
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO chat_sessions (title, created_by_email, created_by_name)
+      VALUES ($1, $2, $3)
+      RETURNING session_id, title, created_by_email, created_by_name, created_at, updated_at
+    `, [title, user.email, user.name]);
+
+    res.json({
+      success: true,
+      session: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating chat session:', error);
+    res.status(500).json({
+      error: 'Failed to create chat session',
+      details: error.message
+    });
+  }
+});
+
+// Save a message to a chat session
+app.post('/api/chat-sessions/:sessionId/messages', requireTAMUEmail, async (req, res) => {
+  const { sessionId } = req.params;
+  const { role, content } = req.body;
+
+  if (!role || !content) {
+    return res.status(400).json({
+      error: 'Role and content are required'
+    });
+  }
+
+  if (!['user', 'assistant'].includes(role)) {
+    return res.status(400).json({
+      error: 'Role must be either "user" or "assistant"'
+    });
+  }
+
+  try {
+    // Save the message
+    const messageResult = await pool.query(`
+      INSERT INTO chat_messages (session_id, role, content)
+      VALUES ($1, $2, $3)
+      RETURNING message_id, session_id, role, content, created_at
+    `, [sessionId, role, content]);
+
+    // Update the session's updated_at timestamp
+    await pool.query(`
+      UPDATE chat_sessions
+      SET updated_at = NOW()
+      WHERE session_id = $1
+    `, [sessionId]);
+
+    res.json({
+      success: true,
+      message: messageResult.rows[0]
+    });
+  } catch (error) {
+    console.error('Error saving chat message:', error);
+    res.status(500).json({
+      error: 'Failed to save chat message',
+      details: error.message
+    });
+  }
+});
+
+// Delete a chat session
+app.delete('/api/chat-sessions/:sessionId', requireTAMUEmail, async (req, res) => {
+  const { sessionId } = req.params;
+
+  try {
+    await pool.query(`
+      DELETE FROM chat_sessions
+      WHERE session_id = $1
+    `, [sessionId]);
+
+    res.json({
+      success: true,
+      message: 'Chat session deleted'
+    });
+  } catch (error) {
+    console.error('Error deleting chat session:', error);
+    res.status(500).json({
+      error: 'Failed to delete chat session',
       details: error.message
     });
   }

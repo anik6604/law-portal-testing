@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import TopBar from "./TopBar.jsx";
+import { API_URL } from "../utils/auth.js";
 import "./ChatBot.css";
 
 export default function ChatBot() {
@@ -8,7 +9,7 @@ export default function ChatBot() {
     {
       id: 1,
       role: "assistant",
-      content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
+      content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Constitutional Law', 'Contract Law', 'Criminal Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
       timestamp: new Date(),
     },
   ]);
@@ -29,6 +30,91 @@ export default function ChatBot() {
     scrollToBottom();
   }, [messages]);
 
+  // Load all chat sessions from database on mount
+  useEffect(() => {
+    loadChatHistory();
+  }, []);
+
+  const loadChatHistory = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/chat-sessions`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success) {
+        const loadedSessions = data.sessions.map(s => ({
+          id: s.session_id,
+          title: s.title,
+          preview: s.title.substring(0, 50),
+          time: formatTime(s.updated_at),
+          timestamp: new Date(s.updated_at),
+          createdBy: s.created_by_name || s.created_by_email,
+          messageCount: s.message_count
+        }));
+        setChatHistory(loadedSessions);
+        if (loadedSessions.length > 0) {
+          setNextChatId(Math.max(...loadedSessions.map(s => s.id)) + 1);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  const saveMessageToDb = async (sessionId, role, content) => {
+    try {
+      await fetch(`${API_URL}/api/chat-sessions/${sessionId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ role, content })
+      });
+    } catch (error) {
+      console.error('Error saving message:', error);
+    }
+  };
+
+  const deleteChat = async (chatId, e) => {
+    e.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this chat?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/api/chat-sessions/${chatId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success) {
+        setChatHistory(chatHistory.filter(c => c.id !== chatId));
+        delete chatMessages[chatId];
+        if (activeChat === chatId) {
+          handleNewChat();
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Failed to delete chat');
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
@@ -46,34 +132,58 @@ export default function ChatBot() {
     const messageContent = inputValue;
     setInputValue("");
 
-    // If this is a new unsaved chat, save it to history now
+    // If this is a new unsaved chat, save it to database
     if (isNewUnsavedChat) {
-      const newChatId = nextChatId;
-      const newChat = {
-        id: newChatId,
-        title: messageContent.substring(0, 50),
-        preview: messageContent.substring(0, 50) + (messageContent.length > 50 ? "..." : ""),
-        time: "Just now",
-        timestamp: new Date(),
-      };
+      let sessionId;
       
-      setChatHistory([newChat, ...chatHistory]);
-      setActiveChat(newChatId);
-      setNextChatId(nextChatId + 1);
-      setIsNewUnsavedChat(false);
+      // Create session in database
+      try {
+        const createResponse = await fetch(`${API_URL}/api/chat-sessions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            title: messageContent.substring(0, 50)
+          })
+        });
+        const createData = await createResponse.json();
+        if (createData.success) {
+          sessionId = createData.session.session_id;
+          const newChat = {
+            id: sessionId,
+            title: messageContent.substring(0, 50),
+            preview: messageContent.substring(0, 50) + (messageContent.length > 50 ? "..." : ""),
+            time: "Just now",
+            timestamp: new Date(),
+            createdBy: createData.session.created_by_name || createData.session.created_by_email,
+            messageCount: 0
+          };
+          
+          setChatHistory([newChat, ...chatHistory]);
+          setActiveChat(sessionId);
+          setIsNewUnsavedChat(false);
+          
+          // Save user message to database
+          await saveMessageToDb(sessionId, 'user', messageContent);
+        }
+      } catch (error) {
+        console.error('Error creating session:', error);
+        alert('Failed to create chat session');
+        return;
+      }
       
-      // Capture the chat ID for the async response
-      const chatIdForResponse = newChatId;
+      // Capture the session ID for the async response
+      const sessionIdForResponse = sessionId;
 
       // Show typing indicator
       setIsTyping(true);
       
       // Call AI search API
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         const response = await fetch(`${API_URL}/api/ai-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             course: messageContent,
             description: ''
@@ -128,18 +238,21 @@ export default function ChatBot() {
         };
         const finalMessages = [...updatedMessages, aiMessage];
         
-        // Update messages and chatMessages using the captured chat ID
+        // Save AI response to database
+        await saveMessageToDb(sessionIdForResponse, 'assistant', aiContent);
+        
+        // Update messages and chatMessages using the captured session ID
         setChatMessages(prev => {
           const newChatMessages = {
             ...prev,
-            [chatIdForResponse]: finalMessages,
+            [sessionIdForResponse]: finalMessages,
           };
           return newChatMessages;
         });
         
         // Only update visible messages if this chat is still active
         setActiveChat(currentActiveChat => {
-          if (currentActiveChat === chatIdForResponse) {
+          if (currentActiveChat === sessionIdForResponse) {
             setMessages(finalMessages);
           }
           return currentActiveChat;
@@ -158,11 +271,11 @@ export default function ChatBot() {
         
         setChatMessages(prev => ({
           ...prev,
-          [chatIdForResponse]: finalMessages,
+          [sessionIdForResponse]: finalMessages,
         }));
         
         setActiveChat(currentActiveChat => {
-          if (currentActiveChat === chatIdForResponse) {
+          if (currentActiveChat === sessionIdForResponse) {
             setMessages(finalMessages);
           }
           return currentActiveChat;
@@ -177,15 +290,18 @@ export default function ChatBot() {
         [chatIdForMessage]: updatedMessages,
       }));
       
+      // Save user message to database
+      await saveMessageToDb(chatIdForMessage, 'user', messageContent);
+      
       // Show typing indicator
       setIsTyping(true);
       
       // Call AI search API
       try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         const response = await fetch(`${API_URL}/api/ai-search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
           body: JSON.stringify({
             course: messageContent,
             description: ''
@@ -239,6 +355,9 @@ export default function ChatBot() {
           candidates: data.candidates || []
         };
         const finalMessages = [...updatedMessages, aiMessage];
+        
+        // Save AI response to database
+        await saveMessageToDb(chatIdForMessage, 'assistant', aiContent);
         
         // Save to the specific chat ID that sent the message
         setChatMessages(prev => ({
@@ -286,7 +405,7 @@ export default function ChatBot() {
       {
         id: 1,
         role: "assistant",
-        content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
+        content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Constitutional Law', 'Contract Law', 'Criminal Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
         timestamp: new Date(),
       },
     ];
@@ -296,27 +415,48 @@ export default function ChatBot() {
     setIsNewUnsavedChat(true);
   };
 
-  const handleChatSelect = (chatId) => {
-    // Load messages for selected chat
+  const handleChatSelect = async (chatId) => {
+    // Load messages for selected chat from database
     setActiveChat(chatId);
     setIsNewUnsavedChat(false);
     
-    const loadedMessages = chatMessages[chatId] || [
-      {
+    // Check if already cached
+    if (chatMessages[chatId]) {
+      setMessages(chatMessages[chatId]);
+      return;
+    }
+    
+    // Load from database
+    try {
+      const response = await fetch(`${API_URL}/api/chat-sessions/${chatId}/messages`, {
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (data.success) {
+        const loadedMessages = data.messages.map(msg => ({
+          id: msg.message_id,
+          role: msg.role,
+          content: msg.content,
+          timestamp: new Date(msg.created_at)
+        }));
+        
+        // Cache the messages
+        setChatMessages(prev => ({
+          ...prev,
+          [chatId]: loadedMessages
+        }));
+        
+        setMessages(loadedMessages);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+      setMessages([{
         id: 1,
         role: "assistant",
-        content: "Hello! I'm your AI teaching assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Cyber Law', 'Constitutional Law', 'Contract Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
+        content: "Error loading messages. Please try again.",
         timestamp: new Date(),
-      },
-    ];
-    setMessages(loadedMessages);
-  };
-
-  const formatTime = (date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
+      }]);
+    }
   };
 
   return (
@@ -341,7 +481,7 @@ export default function ChatBot() {
             </div>
             <div className="brand-text">
               <div className="brand-title">TAMU Law School</div>
-              <div className="brand-subtitle">Cyber Law Assistant</div>
+              <div className="brand-subtitle">Law Hiring Assistant</div>
             </div>
           </div>
         </div>
@@ -352,9 +492,10 @@ export default function ChatBot() {
 
         <div className="chat-history">
           {chatHistory.map((chat) => (
-            <button
+            <div
               key={chat.id}
               className={`chat-history-item ${activeChat === chat.id ? "active" : ""}`}
+              style={{ position: 'relative', padding: '12px', cursor: 'pointer' }}
               onClick={() => handleChatSelect(chat.id)}
             >
               <div className="chat-history-icon">
@@ -371,10 +512,42 @@ export default function ChatBot() {
               </div>
               <div className="chat-history-content">
                 <div className="chat-history-title">{chat.title}</div>
-                <div className="chat-history-preview">{chat.preview}</div>
+                <div className="chat-history-preview">
+                  by {chat.createdBy} • {chat.messageCount || 0} msgs
+                </div>
                 <div className="chat-history-time">{chat.time}</div>
               </div>
-            </button>
+              <button
+                className="delete-chat-btn"
+                onClick={(e) => deleteChat(chat.id, e)}
+                title="Delete chat"
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '8px',
+                  width: '24px',
+                  height: '24px',
+                  padding: '0',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: '#9ca3af',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#ef4444';
+                  e.target.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'transparent';
+                  e.target.style.color = '#9ca3af';
+                }}
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
 
@@ -382,7 +555,7 @@ export default function ChatBot() {
           <div className="footer-text">
             Texas A&M University School of Law
           </div>
-          <div className="footer-version">Cyber Law Assistant v1.0</div>
+          <div className="footer-version">Law Hiring Assistant v1.0</div>
         </div>
       </aside>
 
@@ -401,7 +574,7 @@ export default function ChatBot() {
             </svg>
           </div>
           <div className="chat-header-text">
-            <div className="chat-header-title">TAMU Law Cyber Assistant</div>
+            <div className="chat-header-title">TAMU Law Hiring Assistant</div>
             <div className="chat-header-subtitle">
               Texas A&M University School of Law
             </div>

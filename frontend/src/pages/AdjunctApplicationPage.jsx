@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { checkAuthStatus, redirectToLogin } from "../utils/auth.js";
 import TopBar from "../components/TopBar.jsx";
 
 function normalizeToUS10(raw) {
@@ -28,6 +29,7 @@ function formatPhone(digits) {
 
 export default function AdjunctApplicationPage() {
   const navigate = useNavigate();
+  const [authChecked, setAuthChecked] = useState(false);
 
   // form state
   const [fullName, setFullName] = useState("");
@@ -46,6 +48,18 @@ export default function AdjunctApplicationPage() {
   const phoneInputRef = useRef(null);
   const resumeInputRef = useRef(null);
   const coverInputRef = useRef(null);
+
+  useEffect(() => {
+    const verifyAuth = async () => {
+      const authStatus = await checkAuthStatus();
+      if (!authStatus.authenticated) {
+        redirectToLogin();
+      } else {
+        setAuthChecked(true);
+      }
+    };
+    verifyAuth();
+  }, []);
 
   const handlePhoneChange = (e) => {
     const digitsOnly = normalizeToUS10(e.target.value);
@@ -141,6 +155,14 @@ export default function AdjunctApplicationPage() {
       alert(`Failed to submit application: ${error.message}`);
     }
   };
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        <p>Verifying authentication...</p>
+      </div>
+    );
+  }
 
   return (
     <>

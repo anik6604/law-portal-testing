@@ -1,10 +1,15 @@
 import { useNavigate } from "react-router-dom";
+import { logout } from "../utils/auth.js";
 
-export default function TopBar({ onLogout }) {
+export default function TopBar({ onLogout, showLogout = true }) {
   const navigate = useNavigate();
+  
   const handleLogout = () => {
-    if (onLogout) return onLogout();
-    navigate("/login");
+    if (onLogout) {
+      onLogout();
+    } else {
+      logout(); // Azure AD logout
+    }
   };
 
   const handleHome = () => {
@@ -19,7 +24,9 @@ export default function TopBar({ onLogout }) {
         </div>
         <div style={{ display: "flex", gap: "12px" }}>
           <button className="btn maroon" onClick={handleHome}>Home</button>
-          <button className="btn maroon" onClick={handleLogout}>Logout</button>
+          {showLogout && (
+            <button className="btn maroon" onClick={handleLogout}>Logout</button>
+          )}
         </div>
       </div>
     </header>

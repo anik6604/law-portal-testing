@@ -23,12 +23,12 @@ export default function LandingPage() {
 
       <main className="container">
         <div className="grid">
-          <TileCard title="AI Chatbot" to="/chatbot">
-            Ask program questions, search candidates, and summarize resumes.
+          <TileCard title="Law Hiring Assistant" to="/chatbot">
+            AI-powered candidate search system. Search, filter, and get comprehensive summaries of applicant profiles for any law course.
           </TileCard>
 
-          <TileCard title="Adjunct Application Portal" to="/apply">
-            Review adjunct applications and manage candidate materials.
+          <TileCard title="Adjunct Application Management" to="/apply">
+            Review and manage adjunct faculty applications for TAMU Law School.
           </TileCard>
         </div>
       </main>

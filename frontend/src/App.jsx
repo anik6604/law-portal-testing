@@ -3,18 +3,44 @@ import LoginPage from "./pages/LoginPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import AdjunctApplicationPage from "./pages/AdjunctApplicationPage.jsx";
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        {/* Public route - only login page */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/home" element={<LandingPage />} />
-        <Route path="/apply" element={<AdjunctApplicationPage />} />
-        <Route path="/chatbot" element={<ChatBot />} />
-        {/* catch-all -> login */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        
+        {/* Protected routes - everything requires authentication */}
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route 
+          path="/home" 
+          element={
+            <ProtectedRoute>
+              <LandingPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/chatbot" 
+          element={
+            <ProtectedRoute>
+              <ChatBot />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/apply" 
+          element={
+            <ProtectedRoute>
+              <AdjunctApplicationPage />
+            </ProtectedRoute>
+          } 
+        />
+        
+        {/* Catch-all -> home (which will redirect to login if not authed) */}
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </BrowserRouter>
   );
