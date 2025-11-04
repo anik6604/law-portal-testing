@@ -88,13 +88,15 @@ export function configureAuth(app) {
   app.use(session({
     store: sessionStore, // Use Redis if available, otherwise default MemoryStore
     secret: SESSION_SECRET || 'fallback-secret-change-me',
+    name: 'tamu.sid', // Explicit cookie name
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production', // HTTPS in production, HTTP in dev
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax' // Same-domain cookies (frontend and backend on same domain)
+      sameSite: 'lax', // Same-domain cookies (frontend and backend on same domain)
+      path: '/' // Explicitly set cookie path
     }
   }));
 
