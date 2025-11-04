@@ -55,11 +55,10 @@ export function configureAuth(app) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: true, // Required for sameSite: 'none' (HTTPS)
+      secure: process.env.NODE_ENV === 'production', // HTTPS in production, HTTP in dev
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'none' // Allow cross-origin cookies (frontend on different domain)
-      // No domain restriction - let CORS handle it
+      sameSite: 'lax' // Same-domain cookies (frontend and backend on same domain)
     }
   }));
 
