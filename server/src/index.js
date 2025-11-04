@@ -65,7 +65,10 @@ app.use(cors({
     process.env.FRONTEND_URL || 'http://localhost:5174',
     'https://law-portal-testing-1.onrender.com'
   ],
-  credentials: true // Allow cookies for session management
+  credentials: true, // Allow cookies for session management
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  exposedHeaders: ['Set-Cookie']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
