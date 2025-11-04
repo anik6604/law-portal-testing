@@ -1,6 +1,8 @@
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
+import { RedisStore } from 'connect-redis';
+import { createClient } from 'redis';
 
 let msalInstance = null;
 let authConfig = null;
@@ -49,8 +51,42 @@ export function configureAuth(app) {
   // Configure cookie parser
   app.use(cookieParser());
 
+  // Configure Redis for session storage (if REDIS_URL is provided)
+  let sessionStore;
+  if (process.env.REDIS_URL) {
+    try {
+      const redisClient = createClient({
+        url: process.env.REDIS_URL,
+        socket: {
+          connectTimeout: 10000,
+          reconnectStrategy: (retries) => Math.min(retries * 50, 500)
+        }
+      });
+
+      redisClient.on('error', (err) => console.error('Redis Client Error:', err));
+      redisClient.on('connect', () => console.log('✅ Connected to Redis for session storage'));
+
+      // Connect to Redis
+      redisClient.connect().catch(console.error);
+
+      sessionStore = new RedisStore({
+        client: redisClient,
+        prefix: 'tamu-law:',
+        ttl: 86400, // 24 hours in seconds
+      });
+
+      console.log('✅ Using Redis for persistent session storage');
+    } catch (error) {
+      console.error('❌ Failed to connect to Redis, falling back to MemoryStore:', error.message);
+      sessionStore = undefined; // Will use default MemoryStore
+    }
+  } else {
+    console.warn('⚠️  REDIS_URL not configured. Using MemoryStore (sessions will be lost on restart)');
+  }
+
   // Configure session middleware
   app.use(session({
+    store: sessionStore, // Use Redis if available, otherwise default MemoryStore
     secret: SESSION_SECRET || 'fallback-secret-change-me',
     resave: false,
     saveUninitialized: false,
