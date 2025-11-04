@@ -963,9 +963,14 @@ app.delete('/api/chat-sessions/:sessionId', requireTAMUEmail, async (req, res) =
   }
 });
 
-// SPA fallback - serve index.html for all non-API routes (MUST be last!)
+// SPA fallback - serve index.html for all non-API/non-auth routes (MUST be last!)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
+    // Don't serve index.html for API or auth routes - they should have been handled above
+    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/')) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
     const frontendPath = path.join(__dirname, '../../frontend/dist');
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
