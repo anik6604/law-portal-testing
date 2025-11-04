@@ -61,7 +61,10 @@ const upload = multer({
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5174',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:5174',
+    'https://law-portal-testing-1.onrender.com'
+  ],
   credentials: true // Allow cookies for session management
 }));
 app.use(express.json());
