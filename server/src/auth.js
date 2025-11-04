@@ -55,10 +55,11 @@ export function configureAuth(app) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      secure: true, // Required for sameSite: 'none' (HTTPS)
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax'
+      sameSite: 'none', // Allow cross-origin cookies (frontend on different domain)
+      domain: '.onrender.com' // Share cookies across *.onrender.com subdomains
     }
   }));
 
