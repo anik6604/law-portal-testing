@@ -58,8 +58,8 @@ export function configureAuth(app) {
       secure: true, // Required for sameSite: 'none' (HTTPS)
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'none', // Allow cross-origin cookies (frontend on different domain)
-      domain: '.onrender.com' // Share cookies across *.onrender.com subdomains
+      sameSite: 'none' // Allow cross-origin cookies (frontend on different domain)
+      // No domain restriction - let CORS handle it
     }
   }));
 
