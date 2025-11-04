@@ -84,6 +84,8 @@ export function configureAuth(app) {
     console.warn('⚠️  REDIS_URL not configured. Using MemoryStore (sessions will be lost on restart)');
   }
 
+  const isProd = process.env.NODE_ENV === 'production';
+
   // Configure session middleware
   app.use(session({
     store: sessionStore, // Use Redis if available, otherwise default MemoryStore
@@ -92,11 +94,11 @@ export function configureAuth(app) {
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // HTTPS in production, HTTP in dev
       httpOnly: true,
+      path: '/',
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      sameSite: 'lax', // Same-domain cookies (frontend and backend on same domain)
-      path: '/' // Explicitly set cookie path
+      secure: isProd, // HTTPS only in production
+      sameSite: isProd ? 'none' : 'lax', // OAuth cross-site redirect requires 'none' in prod
     }
   }));
 

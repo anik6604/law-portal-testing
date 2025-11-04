@@ -71,6 +71,10 @@ if (process.env.NODE_ENV !== 'production') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// CRITICAL: Trust Render's proxy so Express recognizes HTTPS connections
+// Must be set BEFORE session middleware (i.e., before configureAuth)
+app.set('trust proxy', 1);
+
 // Configure Azure AD authentication
 const authEnabled = configureAuth(app);
 
