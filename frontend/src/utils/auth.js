@@ -2,7 +2,9 @@
  * Authentication utilities for frontend
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+// In production, backend serves frontend on same domain, so use relative URLs
+// In dev, frontend runs on :5174 and backend on :4000
+const API_URL = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:4000');
 
 /**
  * Check if user is authenticated

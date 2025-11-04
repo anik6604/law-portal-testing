@@ -60,21 +60,31 @@ const upload = multer({
 });
 
 // Middleware
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:5174',
-    'https://law-portal-testing-1.onrender.com'
-  ],
-  credentials: true, // Allow cookies for session management
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Set-Cookie']
-}));
+// Only enable CORS for local development (when frontend runs on separate port)
+if (process.env.NODE_ENV !== 'production') {
+  app.use(cors({
+    origin: 'http://localhost:5174',
+    credentials: true
+  }));
+}
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Configure Azure AD authentication
 const authEnabled = configureAuth(app);
+
+// Serve static frontend files in production (after auth middleware but before routes)
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '../../frontend/dist');
+  console.log(`Serving static files from: ${frontendPath}`);
+  app.use(express.static(frontendPath));
+}
 
 /**
  * Upload a file to S3 and return the S3 URL
@@ -185,15 +195,19 @@ app.get('/auth/callback', async (req, res) => {
 
     console.log('✅ User authenticated:', user.email);
 
-    // Save session before redirecting (critical for cross-domain!)
+    // Save session before redirecting
     req.session.save((err) => {
       if (err) {
         console.error('Session save error:', err);
       }
       
-      // Redirect to frontend home page
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-      res.redirect(`${frontendUrl}/home`);
+      // Redirect to home page (same domain in production, separate in dev)
+      if (process.env.NODE_ENV === 'production') {
+        res.redirect('/home');
+      } else {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+        res.redirect(`${frontendUrl}/home`);
+      }
     });
   } catch (error) {
     console.error('Error during token acquisition:', error);
@@ -214,8 +228,10 @@ app.get('/auth/logout', (req, res) => {
     
     // Redirect to Azure AD logout to clear Azure session, then back to login page
     const tenantId = process.env.AZURE_AD_TENANT_ID;
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-    const loginPageUrl = `${frontendUrl}/login`;
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? `https://${req.get('host')}`
+      : (process.env.FRONTEND_URL || 'http://localhost:5174');
+    const loginPageUrl = `${baseUrl}/login`;
     const logoutUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/logout?post_logout_redirect_uri=${encodeURIComponent(loginPageUrl)}`;
     
     res.redirect(logoutUrl);
@@ -947,10 +963,22 @@ app.delete('/api/chat-sessions/:sessionId', requireTAMUEmail, async (req, res) =
   }
 });
 
+// SPA fallback - serve index.html for all non-API routes (MUST be last!)
+if (process.env.NODE_ENV === 'production') {
+  app.get('*', (req, res) => {
+    const frontendPath = path.join(__dirname, '../../frontend/dist');
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
 // Start server
 app.listen(PORT, async () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🚀 Serving frontend and backend from single domain');
+  }
 
   // Test database connection on startup
   try {
