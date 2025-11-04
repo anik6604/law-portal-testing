@@ -182,9 +182,16 @@ app.get('/auth/callback', async (req, res) => {
 
     console.log('✅ User authenticated:', user.email);
 
-    // Redirect to frontend home page
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
-    res.redirect(`${frontendUrl}/home`);
+    // Save session before redirecting (critical for cross-domain!)
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+      }
+      
+      // Redirect to frontend home page
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+      res.redirect(`${frontendUrl}/home`);
+    });
   } catch (error) {
     console.error('Error during token acquisition:', error);
     res.redirect('/auth/login');
