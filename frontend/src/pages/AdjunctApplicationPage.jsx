@@ -100,7 +100,8 @@ export default function AdjunctApplicationPage() {
     setSubmitting(true);
 
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+      // Use relative URLs in production (same domain), absolute in dev
+      const API_URL = import.meta.env.VITE_API_URL || '';
       
       // Format phone for database (readable format)
       const phoneForDb = phoneDigits.length === 10 ? formatPhone(phoneDigits) : null;
