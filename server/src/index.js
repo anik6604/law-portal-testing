@@ -10,9 +10,9 @@ import { generateEmbedding } from './embeddings.js';
 import { getResumePresignedUrl } from './s3-utils.js';
 import OpenAI from 'openai';
 import { configureAuth, getMsalInstance, getAuthConfig, requireTAMUEmail } from './auth.js';
+import { PDFParse } from 'pdf-parse';
 
 const require = createRequire(import.meta.url);
-const pdf = require('pdf-parse');
 
 dotenv.config();
 
@@ -101,8 +101,9 @@ async function uploadToS3(fileBuffer, fileName, contentType) {
   const bucketName = process.env.S3_BUCKET_NAME || 'resume-storage-tamu-law';
   const region = process.env.AWS_REGION || 'us-east-2';
 
-  // Use original filename (S3 will handle URL encoding)
-  const key = fileName;
+  // Sanitize filename: replace spaces with underscores for standardization
+  const sanitizedFileName = fileName.replace(/\s+/g, '_');
+  const key = sanitizedFileName;
 
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -113,8 +114,8 @@ async function uploadToS3(fileBuffer, fileName, contentType) {
 
   await s3Client.send(command);
 
-  // Return the S3 URL (not pre-signed, will be signed when retrieved)
-  const s3Url = `https://${bucketName}.s3.${region}.amazonaws.com/${fileName}`;
+  // Return the S3 URL with sanitized filename
+  const s3Url = `https://${bucketName}.s3.${region}.amazonaws.com/${sanitizedFileName}`;
   console.log(`Uploaded to S3: ${s3Url}`);
   
   return s3Url;
@@ -310,7 +311,9 @@ app.post('/api/applications', upload.fields([
     // Extract text from resume PDF
     let resumeText = '';
     try {
-      const resumeData = await pdf(resumeFile.buffer);
+      const parser = new PDFParse({ data: resumeFile.buffer });
+      const resumeData = await parser.getText();
+      await parser.destroy();
       resumeText = resumeData.text || '';
       console.log(`Extracted ${resumeText.length} characters from resume`);
     } catch (pdfError) {
@@ -322,7 +325,9 @@ app.post('/api/applications', upload.fields([
     let coverLetterText = '';
     if (coverLetterFile) {
       try {
-        const coverData = await pdf(coverLetterFile.buffer);
+        const parser = new PDFParse({ data: coverLetterFile.buffer });
+        const coverData = await parser.getText();
+        await parser.destroy();
         coverLetterText = coverData.text || '';
         console.log(`Extracted ${coverLetterText.length} characters from cover letter`);
       } catch (pdfError) {
