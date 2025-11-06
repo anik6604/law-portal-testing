@@ -678,6 +678,89 @@ node generate-embeddings.js
 - Visit `http://localhost:5173` - Should show the login page
 - Visit `http://localhost:5173/chatbot` - AI chatbot interface
 
+---
+
+## Production Deployment (Render.com)
+
+### Live Application
+**URL:** https://law-portal-testing.onrender.com
+
+### Architecture
+- **Single Unified Service:** Frontend and backend deployed together on same domain
+- **Authentication:** Azure AD (Microsoft Entra ID) with TAMU NetID SSO
+- **Session Storage:** Redis for persistent sessions across server restarts
+- **Database:** AWS RDS PostgreSQL (us-east-1)
+- **File Storage:** AWS S3 (us-east-2)
+- **AI Service:** OpenAI GPT-4o-mini
+
+### Deployment Configuration
+
+**Build Command:**
+```bash
+cd frontend && npm install --include=dev && npm run build && cd ../server && npm install --omit=dev
+```
+
+**Start Command:**
+```bash
+cd server && node src/index.js
+```
+
+**Environment Variables (13 total):**
+- `NODE_ENV=production`
+- `PORT=4000`
+- `AZURE_AD_CLIENT_ID` - Azure AD app client ID
+- `AZURE_AD_CLIENT_SECRET` - Azure AD app secret
+- `AZURE_AD_TENANT_ID` - TAMU tenant ID
+- `AZURE_AD_REDIRECT_URI` - https://law-portal-testing.onrender.com/auth/callback
+- `SESSION_SECRET` - Session encryption key
+- `REDIS_URL` - Redis connection string
+- `DATABASE_URL` - PostgreSQL connection string
+- `AWS_ACCESS_KEY_ID` - AWS credentials for S3
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key
+- `AWS_REGION=us-east-2`
+- `S3_BUCKET_NAME=resume-storage-tamu-law`
+- `OPENAI_API_KEY` - OpenAI API key
+
+### Critical Configuration for OAuth Behind Proxy
+
+**Trust Proxy** (server/src/index.js):
+```javascript
+app.set('trust proxy', 1); // MUST be before session middleware
+```
+
+**Session Cookie** (server/src/auth.js):
+```javascript
+cookie: {
+  secure: isProd,                     // HTTPS only in production
+  sameSite: isProd ? 'none' : 'lax',  // OAuth cross-site redirect
+  httpOnly: true,
+  path: '/',
+  maxAge: 24 * 60 * 60 * 1000
+}
+```
+
+### Production Features
+- ✅ Azure AD SSO authentication with TAMU NetID
+- ✅ Persistent Redis sessions (survives server restarts)
+- ✅ Same-domain cookies (no CORS issues)
+- ✅ Encrypted RDS database with pgvector
+- ✅ S3 pre-signed URLs (7-day expiration)
+- ✅ AI-powered candidate search
+- ✅ Chat history persistence
+- ✅ Public adjunct application form (no login required)
+
+### Deployment Process
+1. Push code to `anik6604/law-portal-testing` GitHub repository
+2. Render auto-deploys on push to `main` branch
+3. Build takes ~3-5 minutes
+4. Service automatically restarts with new code
+5. Redis maintains active sessions during deployment
+
+### Monitoring
+- Health endpoint: https://law-portal-testing.onrender.com/health
+- Render logs: Real-time logs in Render dashboard
+- Redis monitoring: Check session persistence in Redis instance
+
 ## Project Structure
 ```plaintext
 ## Project Structure
@@ -889,7 +972,8 @@ For project information or future collaboration:
 
 ---
 
-**Version:** 3.0  
-**Last Updated:** October 28, 2025  
-**Branch:** anik-infra-testing  
-**Status:** Production Ready with AWS Infrastructure  
+**Version:** 4.0  
+**Last Updated:** November 6, 2025  
+**Branch:** main  
+**Status:** ✅ Production Deployed on Render.com  
+**Live URL:** https://law-portal-testing.onrender.com  
