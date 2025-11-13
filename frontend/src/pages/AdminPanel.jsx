@@ -99,10 +99,29 @@ function AdminPanel() {
   };
 
   const handleFormChange = (field, value) => {
-    setEditForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    // Format phone number with dashes as user types
+    if (field === 'phone') {
+      // Remove all non-numeric characters
+      const numericOnly = value.replace(/\D/g, '');
+      
+      // Format as XXX-XXX-XXXX
+      let formatted = numericOnly;
+      if (numericOnly.length > 3 && numericOnly.length <= 6) {
+        formatted = `${numericOnly.slice(0, 3)}-${numericOnly.slice(3)}`;
+      } else if (numericOnly.length > 6) {
+        formatted = `${numericOnly.slice(0, 3)}-${numericOnly.slice(3, 6)}-${numericOnly.slice(6, 10)}`;
+      }
+      
+      setEditForm(prev => ({
+        ...prev,
+        [field]: formatted
+      }));
+    } else {
+      setEditForm(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   const initiateSave = () => {
