@@ -30,6 +30,10 @@ export default function LandingPage() {
           <TileCard title="Adjunct Application Management" to="/apply">
             Review and manage adjunct faculty applications for TAMU Law School.
           </TileCard>
+
+          <TileCard title="Admin Panel" to="/admin">
+            Manage applicant database: search, edit applicant details, update hiring status, and view resumes.
+          </TileCard>
         </div>
       </main>
 

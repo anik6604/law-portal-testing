@@ -13,9 +13,9 @@ body{
   background:var(--sand)
 }
 
-.container{max-width:1100px;margin:0 auto;padding:24px}
+.container{max-width:1400px;margin:0 auto;padding:24px}
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow)}
-.grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 
 /* Buttons */
 .btn{

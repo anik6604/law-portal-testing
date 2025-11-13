@@ -22,7 +22,7 @@ export function configureAuth(app) {
 
   // Validate environment variables
   if (!AZURE_AD_CLIENT_ID || !AZURE_AD_CLIENT_SECRET || !AZURE_AD_TENANT_ID) {
-    console.warn('⚠️  Azure AD credentials not configured. SSO will be disabled.');
+    console.warn('WARNING: Azure AD credentials not configured. SSO will be disabled.');
     return false;
   }
 
@@ -64,7 +64,7 @@ export function configureAuth(app) {
       });
 
       redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-      redisClient.on('connect', () => console.log('✅ Connected to Redis for session storage'));
+      redisClient.on('connect', () => console.log('Connected to Redis for session storage'));
 
       // Connect to Redis
       redisClient.connect().catch(console.error);
@@ -75,13 +75,13 @@ export function configureAuth(app) {
         ttl: 86400, // 24 hours in seconds
       });
 
-      console.log('✅ Using Redis for persistent session storage');
+      console.log('Using Redis for persistent session storage');
     } catch (error) {
-      console.error('❌ Failed to connect to Redis, falling back to MemoryStore:', error.message);
+      console.error('FAILED to connect to Redis, falling back to MemoryStore:', error.message);
       sessionStore = undefined; // Will use default MemoryStore
     }
   } else {
-    console.warn('⚠️  REDIS_URL not configured. Using MemoryStore (sessions will be lost on restart)');
+    console.warn('WARNING: REDIS_URL not configured. Using MemoryStore (sessions will be lost on restart)');
   }
 
   const isProd = process.env.NODE_ENV === 'production';
@@ -102,7 +102,7 @@ export function configureAuth(app) {
     }
   }));
 
-  console.log('✅ Azure AD authentication configured with MSAL');
+  console.log('Azure AD authentication configured with MSAL');
   return true;
 }
 

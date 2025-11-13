@@ -198,7 +198,7 @@ app.get('/auth/callback', async (req, res) => {
     req.session.user = user;
     req.session.tokenCache = response;
 
-    console.log('✅ User authenticated:', user.email);
+    console.log('User authenticated:', user.email);
 
     // Save session before redirecting
     req.session.save((err) => {
@@ -229,7 +229,7 @@ app.get('/auth/logout', (req, res) => {
       console.error('Logout error:', err);
     }
     
-    console.log(`👋 User logged out: ${user?.email || 'unknown'}`);
+    console.log(`User logged out: ${user?.email || 'unknown'}`);
     
     // Redirect to Azure AD logout to clear Azure session, then back to login page
     const tenantId = process.env.AZURE_AD_TENANT_ID;
@@ -972,6 +972,111 @@ app.delete('/api/chat-sessions/:sessionId', requireTAMUEmail, async (req, res) =
   }
 });
 
+// ==================== ADMIN PANEL ENDPOINTS ====================
+
+// Get all applicants with optional search
+app.get('/api/admin/applicants', requireTAMUEmail, async (req, res) => {
+  const { search } = req.query;
+
+  try {
+    let query = `
+      SELECT 
+        a.applicant_id,
+        a.name,
+        a.email,
+        a.phone,
+        a.note,
+        a.hired,
+        a.created_at,
+        r.resume_file,
+        r.cover_letter_file
+      FROM applicants a
+      LEFT JOIN resumes r ON a.applicant_id = r.applicant_id
+    `;
+
+    const params = [];
+
+    if (search) {
+      query += ` WHERE 
+        a.name ILIKE $1 OR 
+        a.email ILIKE $1 OR 
+        a.phone ILIKE $1 OR
+        CAST(a.applicant_id AS TEXT) ILIKE $1
+      `;
+      params.push(`%${search}%`);
+    }
+
+    query += ` ORDER BY a.created_at DESC`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      applicants: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching applicants:', error);
+    res.status(500).json({
+      error: 'Failed to fetch applicants',
+      details: error.message
+    });
+  }
+});
+
+// Update applicant details
+app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, note, hired } = req.body;
+
+  try {
+    // Check if applicant exists
+    const checkResult = await pool.query(
+      'SELECT applicant_id FROM applicants WHERE applicant_id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Applicant not found'
+      });
+    }
+
+    // Update applicant
+    const result = await pool.query(`
+      UPDATE applicants
+      SET 
+        name = $1,
+        email = $2,
+        phone = $3,
+        note = $4,
+        hired = $5
+      WHERE applicant_id = $6
+      RETURNING *
+    `, [name, email, phone, note, hired, id]);
+
+    res.json({
+      success: true,
+      message: 'Applicant updated successfully',
+      applicant: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating applicant:', error);
+    
+    // Handle unique constraint violation for email
+    if (error.code === '23505') {
+      return res.status(400).json({
+        error: 'Email already exists',
+        details: 'Another applicant is already using this email address'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to update applicant',
+      details: error.message
+    });
+  }
+});
+
 // SPA fallback - serve index.html for all non-API/non-auth routes (MUST be last!)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
@@ -991,7 +1096,7 @@ app.listen(PORT, async () => {
   console.log(`Health check: http://localhost:${PORT}/health`);
   
   if (process.env.NODE_ENV === 'production') {
-    console.log('🚀 Serving frontend and backend from single domain');
+    console.log('Serving frontend and backend from single domain');
   }
 
   // Test database connection on startup

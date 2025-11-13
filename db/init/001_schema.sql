@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS applicants (
   email VARCHAR(200) UNIQUE NOT NULL,
   phone VARCHAR(50),
   note TEXT,
+  hired BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

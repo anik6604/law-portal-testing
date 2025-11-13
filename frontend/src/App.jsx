@@ -3,6 +3,7 @@ import LoginPage from "./pages/LoginPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import AdjunctApplicationPage from "./pages/AdjunctApplicationPage.jsx";
+import AdminPanel from "./pages/AdminPanel.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -35,6 +36,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AdjunctApplicationPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/admin" 
+          element={
+            <ProtectedRoute>
+              <AdminPanel />
             </ProtectedRoute>
           } 
         />
