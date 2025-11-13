@@ -1,20 +1,4 @@
-# TAMU## Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [AWS Infrastructure](#aws-infrastructure)
-- [Requirements](#requirements)
-- [Installation](#installation)
-- [Project Structure](#project-structure)
-- [Usage](#usage)
-- [AI-Powered Search](#ai-powered-search)
-- [Database Architecture](#database-architecture)
-- [Vector Embeddings](#vector-embeddings)
-- [API Documentation](#api-documentation)
-- [Security Features](#security-features)
-- [Troubleshooting](#troubleshooting)
-- [Credits](#credits)
-- [License](#license)
-- [Contact](#contact)tal
+# TAMU Law Resume Portal
 
 A secure, full-stack web application for Texas A&M University School of Law to assist with adjunct faculty hiring, resume management, and AI-powered candidate search.
 
@@ -44,13 +28,16 @@ The TAMU Law Resume Portal is a production-ready full-stack application that man
 
 **Key Features:**
 - Full-stack application with React frontend and Node.js backend
+- **Azure AD SSO Authentication** with TAMU NetID for secure access
+- **Admin Dashboard** with search, inline editing, and CSV export
 - **AWS RDS PostgreSQL** with KMS encryption and pgvector for semantic search
 - **AWS S3** for secure resume storage with pre-signed URLs (7-day expiration)
 - AI-powered candidate matching using OpenAI GPT-4o-mini with strict confidence scoring
 - Automatic PDF text extraction and embedding generation
 - Vector similarity search for scalable candidate matching
-- Secure application submission with direct S3 uploads
+- Secure application submission with direct S3 uploads and role/status tracking
 - One-to-one email logic (latest submission per applicant)
+- **Chat history persistence** with PostgreSQL storage across sessions
 - **Production-ready AWS infrastructure** with encryption at rest and in transit
 - Beautiful UI with TAMU Law building background imagery
 
@@ -98,11 +85,11 @@ The application is deployed with enterprise-grade AWS infrastructure:
 
 ### Migration from Local to AWS
 The application successfully migrated from local Docker PostgreSQL to fully managed AWS infrastructure:
-- ✅ Data migrated via encrypted snapshots
-- ✅ 97 resume files uploaded to S3
-- ✅ Database URLs updated to S3 paths
-- ✅ Pre-signed URL generation implemented
-- ✅ Zero data loss during migration
+- Data migrated via encrypted snapshots
+- 97 resume files uploaded to S3
+- Database URLs updated to S3 paths
+- Pre-signed URL generation implemented
+- Zero data loss during migration
 
 ---
 
@@ -170,6 +157,8 @@ name            VARCHAR(200) NOT NULL
 email           VARCHAR(200) UNIQUE NOT NULL
 phone           VARCHAR(50)
 note            TEXT
+hired           BOOLEAN DEFAULT FALSE
+role            VARCHAR(50) DEFAULT 'None' CHECK (role IN ('Faculty', 'Course Manager', 'None'))
 created_at      TIMESTAMPTZ DEFAULT NOW()
 ```
 
@@ -254,6 +243,8 @@ Submit new application with file uploads.
 - `fullName` (required)
 - `email` (required)
 - `phone` (optional)
+- `role` (required) - Faculty, Course Manager, or None
+- `hired` (required) - Applicant or Hired status
 - `notes` (optional)
 - `resume` (required, PDF file)
 - `coverLetter` (optional, PDF file)
@@ -292,8 +283,59 @@ Get all applications.
 ### GET /api/applications/:id
 Get single application by ID.
 
+### GET /api/admin/applicants
+Get all applicants with optional search (requires TAMU email authentication).
+
+**Query Parameters:**
+- `search` (optional) - Search by name, email, phone, or ID
+
+**Response:**
+```json
+{
+  "success": true,
+  "applicants": [
+    {
+      "applicant_id": 123,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "555-123-4567",
+      "note": "Referred by Dean",
+      "hired": false,
+      "role": "Faculty",
+      "created_at": "2025-10-10T...",
+      "resume_file": "s3://...",
+      "cover_letter_file": "s3://..."
+    }
+  ]
+}
+```
+
+### PUT /api/admin/applicants/:id
+Update applicant details (requires TAMU email authentication).
+
+**Request:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "555-123-4567",
+  "note": "Updated note",
+  "hired": true,
+  "role": "Course Manager"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Applicant updated successfully",
+  "applicant": { /* updated applicant data */ }
+}
+```
+
 ### POST /api/ai-search
-Search for candidates by course/legal area.
+Search for candidates by course/legal area (requires TAMU email authentication).
 
 **Request:**
 ```json
@@ -732,14 +774,14 @@ cookie: {
 ```
 
 ### Production Features
-- ✅ Azure AD SSO authentication with TAMU NetID
-- ✅ Persistent Redis sessions (survives server restarts)
-- ✅ Same-domain cookies (no CORS issues)
-- ✅ Encrypted RDS database with pgvector
-- ✅ S3 pre-signed URLs (7-day expiration)
-- ✅ AI-powered candidate search
-- ✅ Chat history persistence
-- ✅ Public adjunct application form (no login required)
+- Azure AD SSO authentication with TAMU NetID
+- Persistent Redis sessions (survives server restarts)
+- Same-domain cookies (no CORS issues)
+- Encrypted RDS database with pgvector
+- S3 pre-signed URLs (7-day expiration)
+- AI-powered candidate search
+- Chat history persistence
+- Public adjunct application form (no login required)
 
 ### Deployment Process
 1. Push code to `anik6604/law-portal-testing` GitHub repository
@@ -849,29 +891,32 @@ frontend/
 
 ## Future Enhancements
 
-### Completed Features ✅
-1. ✅ **S3 Integration** - PDFs stored in AWS S3 with 7-day pre-signed URLs
-2. ✅ **AWS RDS Database** - Encrypted PostgreSQL with pgvector
-3. ✅ **Clickable Resume Links** - Markdown-rendered links in chatbot
-4. ✅ **Strict Confidence Scoring** - Direct experience required (4+)
-5. ✅ **Batch Processing** - Concurrent AI analysis for better performance
-6. ✅ **Infrastructure as Code** - AWS CDK for reproducible deployments
+### Completed Features
+1. **S3 Integration** - PDFs stored in AWS S3 with 7-day pre-signed URLs
+2. **AWS RDS Database** - Encrypted PostgreSQL with pgvector
+3. **Clickable Resume Links** - Markdown-rendered links in chatbot
+4. **Strict Confidence Scoring** - Direct experience required (4+)
+5. **Batch Processing** - Concurrent AI analysis for better performance
+6. **Infrastructure as Code** - AWS CDK for reproducible deployments
+7. **Azure AD Authentication** - Microsoft Entra ID SSO with TAMU NetID
+8. **Admin Dashboard** - Full CRUD operations with search and inline editing
+9. **CSV Export** - Download applicant data (ID, Name, Email, Phone, Role, Status, Note)
+10. **Chat History Persistence** - PostgreSQL-backed conversation storage
+11. **Role & Status Tracking** - Faculty/Course Manager roles and Applicant/Hired status
+12. **Redis Session Store** - Persistent sessions across server restarts
+13. **Production Deployment** - Live on Render.com with auto-deploy
 
-### Planned Features 🚀
-1. **NetID Authentication** - Microsoft Entra ID (OIDC) integration
-2. **Admin Dashboard** - View, search, and manage applications with filters
-3. **Advanced Filters** - Filter by experience, location, qualifications
-4. **Conversation Memory** - AI remembers previous chat queries in session
-5. **Batch Search** - Search for multiple courses simultaneously
-6. **Export Results** - Download candidate lists as PDF/CSV
-7. **Email Notifications** - Automated emails for application submissions
-8. **Fine-tuned Model** - Train on law school hiring data for better matching
-9. **Hybrid Search** - Combine vector search with SQL filters (experience years, location)
-10. **Multi-aspect Embeddings** - Separate vectors for skills, experience, education
-11. **CloudFront CDN** - Faster resume delivery with edge caching
-12. **Lambda Functions** - Serverless PDF processing and embedding generation
-13. **DynamoDB Integration** - Chat history and user sessions
-14. **API Gateway** - RESTful API with rate limiting and authentication
+### Planned Features
+1. **Advanced Filters** - Filter by role, status, experience, location
+2. **Batch Search** - Search for multiple courses simultaneously
+3. **Email Notifications** - Automated emails for application submissions
+4. **Fine-tuned Model** - Train on law school hiring data for better matching
+5. **Hybrid Search** - Combine vector search with SQL filters (experience years, location)
+6. **Multi-aspect Embeddings** - Separate vectors for skills, experience, education
+7. **CloudFront CDN** - Faster resume delivery with edge caching
+8. **Lambda Functions** - Serverless PDF processing and embedding generation
+9. **API Gateway** - RESTful API with rate limiting and authentication
+10. **Bulk Operations** - Bulk status updates and role assignments
 
 ---
 
@@ -965,7 +1010,7 @@ For project information or future collaboration:
 ---
 
 **Version:** 4.0  
-**Last Updated:** November 6, 2025  
+**Last Updated:** November 13, 2025  
 **Branch:** main  
-**Status:** ✅ Production Deployed on Render.com  
+**Status:** Production Deployed on Render.com  
 **Live URL:** https://law-portal-testing.onrender.com  

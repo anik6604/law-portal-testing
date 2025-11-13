@@ -205,7 +205,7 @@ export default function ChatBot() {
           data.candidates.forEach((candidate, idx) => {
             aiContent += `${idx + 1}. **${candidate.name}** (${candidate.email || 'N/A'})\n`;
             if (candidate.lawSchool) {
-              aiContent += `   🎓 Law School: ${candidate.lawSchool}\n`;
+              aiContent += `   Law School: ${candidate.lawSchool}\n`;
             }
             if (candidate.note) {
               aiContent += `   Note: ${candidate.note}\n`;
@@ -219,7 +219,7 @@ export default function ChatBot() {
               aiContent += `   Source: ${candidate.source.join(', ')}\n`;
             }
             if (candidate.resumeFile) {
-              aiContent += `   📄 [View Resume](${candidate.resumeFile})\n`;
+              aiContent += `   [View Resume](${candidate.resumeFile})\n`;
             }
             aiContent += `\n`;
           });
@@ -323,7 +323,7 @@ export default function ChatBot() {
           data.candidates.forEach((candidate, idx) => {
             aiContent += `${idx + 1}. **${candidate.name}** (${candidate.email || 'N/A'})\n`;
             if (candidate.lawSchool) {
-              aiContent += `   🎓 Law School: ${candidate.lawSchool}\n`;
+              aiContent += `   Law School: ${candidate.lawSchool}\n`;
             }
             if (candidate.note) {
               aiContent += `   Note: ${candidate.note}\n`;
@@ -337,7 +337,7 @@ export default function ChatBot() {
               aiContent += `   Source: ${candidate.source.join(', ')}\n`;
             }
             if (candidate.resumeFile) {
-              aiContent += `   📄 [View Resume](${candidate.resumeFile})\n`;
+              aiContent += `   [View Resume](${candidate.resumeFile})\n`;
             }
             aiContent += `\n`;
           });

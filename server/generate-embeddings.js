@@ -9,7 +9,7 @@ const pool = new pg.Pool({
 });
 
 async function generateEmbeddingsForExistingResumes() {
-  console.log('🚀 Starting embedding generation for existing resumes...\n');
+  console.log('Starting embedding generation for existing resumes...\n');
   
   try {
     // Get all resumes without embeddings
@@ -24,7 +24,7 @@ async function generateEmbeddingsForExistingResumes() {
     console.log(`Found ${result.rows.length} resumes without embeddings\n`);
     
     if (result.rows.length === 0) {
-      console.log('✅ All resumes already have embeddings!');
+      console.log('All resumes already have embeddings!');
       await pool.end();
       return;
     }
@@ -43,17 +43,17 @@ async function generateEmbeddingsForExistingResumes() {
           WHERE resume_id = $2
         `, [JSON.stringify(embedding), resume.resume_id]);
         
-        console.log(`✅ Generated ${embedding.length}-dimensional embedding\n`);
+        console.log(`Generated ${embedding.length}-dimensional embedding\n`);
       } catch (error) {
-        console.error(`❌ Error for resume ${resume.resume_id}:`, error.message);
+        console.error(`Error for resume ${resume.resume_id}:`, error.message);
         console.log('');
       }
     }
     
-    console.log('🎉 Embedding generation complete!');
+    console.log('Embedding generation complete!');
     
   } catch (error) {
-    console.error('❌ Error:', error);
+    console.error('Error:', error);
   } finally {
     await pool.end();
   }
