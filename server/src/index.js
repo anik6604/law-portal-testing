@@ -270,7 +270,7 @@ app.post('/api/applications', upload.fields([
   { name: 'resume', maxCount: 1 },
   { name: 'coverLetter', maxCount: 1 }
 ]), async (req, res) => {
-  const { fullName, email, phone, notes } = req.body;
+  const { fullName, email, phone, notes, hired, role } = req.body;
   const resumeFile = req.files?.resume?.[0];
   const coverLetterFile = req.files?.coverLetter?.[0];
 
@@ -355,11 +355,13 @@ app.post('/api/applications', upload.fields([
     }
 
     // Insert new applicant
+    const hiredValue = hired === 'true' || hired === true;
+    const roleValue = role || 'None';
     const applicantResult = await client.query(
-      `INSERT INTO applicants (name, email, phone, note) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO applicants (name, email, phone, note, hired, role) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING applicant_id`,
-      [fullName, email, phone || null, notes || null]
+      [fullName, email, phone || null, notes || null, hiredValue, roleValue]
     );
 
     const applicantId = applicantResult.rows[0].applicant_id;
@@ -987,6 +989,7 @@ app.get('/api/admin/applicants', requireTAMUEmail, async (req, res) => {
         a.phone,
         a.note,
         a.hired,
+        a.role,
         a.created_at,
         r.resume_file,
         r.cover_letter_file
@@ -1026,7 +1029,7 @@ app.get('/api/admin/applicants', requireTAMUEmail, async (req, res) => {
 // Update applicant details
 app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
   const { id } = req.params;
-  const { name, email, phone, note, hired } = req.body;
+  const { name, email, phone, note, hired, role } = req.body;
 
   try {
     // Check if applicant exists
@@ -1049,10 +1052,11 @@ app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
         email = $2,
         phone = $3,
         note = $4,
-        hired = $5
-      WHERE applicant_id = $6
+        hired = $5,
+        role = $6
+      WHERE applicant_id = $7
       RETURNING *
-    `, [name, email, phone, note, hired, id]);
+    `, [name, email, phone, note, hired, role || 'None', id]);
 
     res.json({
       success: true,

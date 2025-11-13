@@ -39,6 +39,8 @@ export default function AdjunctApplicationPage() {
   const [resume, setResume] = useState(null);
   const [cover, setCover] = useState(null);
   const [notes, setNotes] = useState("");
+  const [status, setStatus] = useState("false"); // false = Applicant, true = Hired
+  const [role, setRole] = useState("None"); // Faculty, Course Manager, or None
 
   // ui state
   const [showConfirm, setShowConfirm] = useState(false);
@@ -112,6 +114,8 @@ export default function AdjunctApplicationPage() {
       formData.append('email', email);
       if (phoneForDb) formData.append('phone', phoneForDb);
       if (notes) formData.append('notes', notes);
+      formData.append('hired', status); // Send status as hired field
+      formData.append('role', role); // Send role field
       
       // Append files
       if (resume) formData.append('resume', resume);
@@ -138,6 +142,8 @@ export default function AdjunctApplicationPage() {
       setResume(null);
       setCover(null);
       setNotes("");
+      setStatus("false");
+      setRole("None");
       
       // Clear file inputs
       if (resumeInputRef.current) resumeInputRef.current.value = '';
@@ -269,6 +275,37 @@ export default function AdjunctApplicationPage() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
+            </div>
+
+            <div className="form-grid-2">
+              <div className="form-row">
+                <label htmlFor="role">Role</label>
+                <select
+                  id="role"
+                  className="input"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  required
+                >
+                  <option value="None">None</option>
+                  <option value="Faculty">Faculty</option>
+                  <option value="Course Manager">Course Manager</option>
+                </select>
+              </div>
+
+              <div className="form-row">
+                <label htmlFor="status">Status</label>
+                <select
+                  id="status"
+                  className="input"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  required
+                >
+                  <option value="false">Applicant</option>
+                  <option value="true">Hired</option>
+                </select>
+              </div>
             </div>
 
             <div className="form-actions">

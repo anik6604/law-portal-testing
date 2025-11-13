@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS applicants (
   phone VARCHAR(50),
   note TEXT,
   hired BOOLEAN DEFAULT FALSE,
+  role VARCHAR(50) DEFAULT 'None' CHECK (role IN ('Faculty', 'Course Manager', 'None')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -89,7 +89,8 @@ function AdminPanel() {
       email: applicant.email || '',
       phone: applicant.phone || '',
       note: applicant.note || '',
-      hired: applicant.hired || false
+      hired: applicant.hired || false,
+      role: applicant.role || 'None'
     });
   };
 
@@ -177,15 +178,68 @@ function AdminPanel() {
     });
   };
 
+  const exportToCSV = () => {
+    // Define CSV headers
+    const headers = ['ID', 'Name', 'Email', 'Phone', 'Role', 'Hired', 'Note'];
+    
+    // Convert data to CSV format
+    const csvRows = [];
+    csvRows.push(headers.join(','));
+    
+    applicants.forEach(applicant => {
+      const row = [
+        applicant.applicant_id || '',
+        `"${(applicant.name || '').replace(/"/g, '""')}"`, // Escape quotes
+        applicant.email || '',
+        applicant.phone || '',
+        applicant.role || 'None',
+        applicant.hired ? 'Yes' : 'No',
+        `"${(applicant.note || '').replace(/"/g, '""')}"` // Escape quotes
+      ];
+      csvRows.push(row.join(','));
+    });
+    
+    // Create blob and download
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', `applicants_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="app-container">
       <TopBar />
       
       <div style={{ padding: '40px 20px', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ marginBottom: '30px' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#500000' }}>
+        <div style={{ marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: '#500000', margin: 0 }}>
             Admin Panel - Manage Applicants
           </h1>
+          <button
+            onClick={exportToCSV}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              fontWeight: '500',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = '#218838'}
+            onMouseLeave={(e) => e.target.style.backgroundColor = '#28a745'}
+          >
+            Export to CSV
+          </button>
         </div>
 
         {/* Search Bar */}
@@ -321,7 +375,8 @@ function AdminPanel() {
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Email</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Phone</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Note</th>
-                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Hired</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Role</th>
+                  <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Status</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Created</th>
                   <th style={{ padding: '15px', textAlign: 'left', fontWeight: 'bold' }}>Actions</th>
                 </tr>
@@ -423,6 +478,37 @@ function AdminPanel() {
                         )}
                       </td>
                       
+                      {/* Role */}
+                      <td style={{ padding: '12px' }}>
+                        {isEditing ? (
+                          <select
+                            value={editForm.role || 'None'}
+                            onChange={(e) => handleFormChange('role', e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '6px',
+                              border: '1px solid #500000',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            <option value="None">None</option>
+                            <option value="Faculty">Faculty</option>
+                            <option value="Course Manager">Course Manager</option>
+                          </select>
+                        ) : (
+                          <span style={{
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            backgroundColor: applicant.role === 'Faculty' ? '#2196F3' : applicant.role === 'Course Manager' ? '#FF9800' : '#999',
+                            color: 'white',
+                            fontSize: '0.85rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {applicant.role || 'NONE'}
+                          </span>
+                        )}
+                      </td>
+                      
                       {/* Hired Status */}
                       <td style={{ padding: '12px' }}>
                         {isEditing ? (
@@ -436,7 +522,7 @@ function AdminPanel() {
                               borderRadius: '4px'
                             }}
                           >
-                            <option value="false">Not Hired</option>
+                            <option value="false">Applicant</option>
                             <option value="true">Hired</option>
                           </select>
                         ) : (
@@ -448,7 +534,7 @@ function AdminPanel() {
                             fontSize: '0.85rem',
                             fontWeight: 'bold'
                           }}>
-                            {applicant.hired ? 'HIRED' : 'NOT HIRED'}
+                            {applicant.hired ? 'HIRED' : 'APPLICANT'}
                           </span>
                         )}
                       </td>
