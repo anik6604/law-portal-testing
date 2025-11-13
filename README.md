@@ -632,16 +632,8 @@ docker-compose exec db psql -U tamu -d law_portal -c "SELECT COUNT(*) FROM resum
 ```
 
 Notes:
-- This approach requires a fresh DB volume because the docker-entrypoint-initdb.d scripts only run on first initialization. If you already have a database volume you want to keep, use the import method below instead.
-- The dump includes extension creation for `vector` (pgvector). The Docker image used is `pgvector/pgvector:pg16`.
-
-Alternative: import the dump manually into a running DB (no volume reset):
-
-```bash
-# from the project root after starting just the db container
-docker-compose exec -T db psql -U tamu -d law_portal < resume_full_dump.sql
-```
-
+- This approach requires a fresh DB volume because the docker-entrypoint-initdb.d scripts only run on first initialization.
+- The schema includes pgvector extension creation for semantic search. The Docker image used is `pgvector/pgvector:pg16`.
 
 The database uses the **pgvector/pgvector:pg16** image with vector extensions enabled.
 
