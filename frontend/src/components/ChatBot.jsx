@@ -9,7 +9,7 @@ export default function ChatBot() {
     {
       id: 1,
       role: "assistant",
-      content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Constitutional Law', 'Contract Law', 'Criminal Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
+      content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. You can either:\n1. **Select a course** from the dropdown menu below\n2. **Type freely** to search for candidates by topic or skills\n\nWhat course are you looking to fill?",
       timestamp: new Date(),
     },
   ]);
@@ -20,7 +20,12 @@ export default function ChatBot() {
   const [nextChatId, setNextChatId] = useState(1);
   const [isNewUnsavedChat, setIsNewUnsavedChat] = useState(true); // Track if current chat is unsaved
   const [isTyping, setIsTyping] = useState(false); // Track if AI is typing
+  const [courses, setCourses] = useState([]); // All available courses
+  const [selectedCourse, setSelectedCourse] = useState(null); // Currently selected course
+  const [courseSearchTerm, setCourseSearchTerm] = useState(""); // Search term for filtering courses
+  const [showCourseDropdown, setShowCourseDropdown] = useState(false); // Show/hide dropdown
   const messagesEndRef = useRef(null);
+  const courseDropdownRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,6 +38,32 @@ export default function ChatBot() {
   // Load all chat sessions from database on mount
   useEffect(() => {
     loadChatHistory();
+    loadCourses();
+  }, []);
+
+  // Load courses from API
+  const loadCourses = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/courses`);
+      const data = await response.json();
+      if (data.success) {
+        setCourses(data.courses);
+      }
+    } catch (error) {
+      console.error('Error loading courses:', error);
+    }
+  };
+
+  // Handle clicking outside course dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (courseDropdownRef.current && !courseDropdownRef.current.contains(event.target)) {
+        setShowCourseDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const loadChatHistory = async () => {
@@ -115,6 +146,29 @@ export default function ChatBot() {
     }
   };
 
+  const handleCourseSelect = (course) => {
+    setSelectedCourse(course);
+    setCourseSearchTerm(`${course.course_code}`);
+    setShowCourseDropdown(false);
+    // Auto-fill the message input with course code, name, and description
+    setInputValue(`Find candidates for ${course.course_code} - ${course.course_name}`);
+  };
+
+  const handleCourseSearchChange = (e) => {
+    setCourseSearchTerm(e.target.value);
+    setShowCourseDropdown(true);
+    setSelectedCourse(null); // Clear selection when typing
+  };
+
+  const filteredCourses = courses.filter(course => {
+    const searchLower = courseSearchTerm.toLowerCase();
+    return (
+      course.course_code.toLowerCase().includes(searchLower) ||
+      course.course_name.toLowerCase().includes(searchLower) ||
+      course.description.toLowerCase().includes(searchLower)
+    );
+  });
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
@@ -131,6 +185,11 @@ export default function ChatBot() {
     
     const messageContent = inputValue;
     setInputValue("");
+    
+    // Reset course selection after sending
+    const currentCourseSelection = selectedCourse;
+    setSelectedCourse(null);
+    setCourseSearchTerm("");
 
     // If this is a new unsaved chat, save it to database
     if (isNewUnsavedChat) {
@@ -174,6 +233,7 @@ export default function ChatBot() {
       
       // Capture the session ID for the async response
       const sessionIdForResponse = sessionId;
+      const courseForSearch = currentCourseSelection;
 
       // Show typing indicator
       setIsTyping(true);
@@ -185,8 +245,8 @@ export default function ChatBot() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            course: messageContent,
-            description: ''
+            course: courseForSearch ? `${courseForSearch.course_code} - ${courseForSearch.course_name}` : messageContent,
+            description: courseForSearch ? courseForSearch.description : ''
           })
         });
 
@@ -284,6 +344,7 @@ export default function ChatBot() {
     } else {
       // Update existing chat - capture the current active chat ID
       const chatIdForMessage = activeChat;
+      const courseForSearch = currentCourseSelection;
       
       setChatMessages(prev => ({
         ...prev,
@@ -303,8 +364,8 @@ export default function ChatBot() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
-            course: messageContent,
-            description: ''
+            course: courseForSearch ? `${courseForSearch.course_code} - ${courseForSearch.course_name}` : messageContent,
+            description: courseForSearch ? courseForSearch.description : ''
           })
         });
 
@@ -405,7 +466,7 @@ export default function ChatBot() {
       {
         id: 1,
         role: "assistant",
-        content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. Simply tell me the course name (e.g., 'Constitutional Law', 'Contract Law', 'Criminal Law') and I'll search through all applicant resumes to find potential instructors.\n\nWhat course are you looking to fill?",
+        content: "Hello! I'm your AI hiring assistant.\n\nI can help you find qualified candidates for law courses. You can either:\n1. **Select a course** from the dropdown menu below\n2. **Type freely** to search for candidates by topic or skills\n\nWhat course are you looking to fill?",
         timestamp: new Date(),
       },
     ];
@@ -413,6 +474,8 @@ export default function ChatBot() {
     setMessages(initialMessages);
     setActiveChat(null);
     setIsNewUnsavedChat(true);
+    setSelectedCourse(null);
+    setCourseSearchTerm("");
   };
 
   const handleChatSelect = async (chatId) => {
@@ -650,13 +713,126 @@ export default function ChatBot() {
         </div>
 
         <div className="chat-input-container">
-          <form onSubmit={handleSendMessage} className="chat-input-form">
+          <form onSubmit={handleSendMessage} className="chat-input-form" style={{ 
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'center',
+            width: '100%'
+          }}>
+            {/* Course Selection Dropdown - Compact and Elegant */}
+            <div className="course-selector" ref={courseDropdownRef} style={{ 
+              position: 'relative',
+              flex: '0 0 200px',
+              minWidth: '160px'
+            }}>
+              <input
+                type="text"
+                className="course-search-input"
+                placeholder="Course code..."
+                value={courseSearchTerm}
+                onChange={handleCourseSearchChange}
+                onFocus={() => setShowCourseDropdown(true)}
+                style={{
+                  width: '100%',
+                  padding: '12px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  outline: 'none',
+                  transition: 'all 0.2s',
+                  backgroundColor: 'white',
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.borderColor = '#500000';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(80, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#500000';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(80, 0, 0, 0.1)';
+                }}
+                onBlur={(e) => {
+                  if (!courseDropdownRef.current?.contains(document.activeElement)) {
+                    e.target.style.boxShadow = 'none';
+                  }
+                }}
+              />
+              {showCourseDropdown && filteredCourses.length > 0 && (
+                <div className="course-dropdown" style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  width: '280px',
+                  marginBottom: '8px',
+                  backgroundColor: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  maxHeight: '280px',
+                  overflowY: 'auto',
+                  boxShadow: '0 -4px 12px -2px rgba(0, 0, 0, 0.15), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)',
+                  zIndex: 1000
+                }}>
+                  {filteredCourses.slice(0, 20).map((course) => (
+                    <div
+                      key={course.course_id}
+                      className="course-dropdown-item"
+                      onClick={() => handleCourseSelect(course)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f3f4f6',
+                        transition: 'background-color 0.15s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fef8f8';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'white';
+                      }}
+                    >
+                      <div style={{ 
+                        fontWeight: '600', 
+                        color: '#500000', 
+                        fontSize: '12px',
+                        marginBottom: '2px'
+                      }}>
+                        {course.course_code}
+                      </div>
+                      <div style={{ 
+                        fontSize: '11px', 
+                        color: '#374151',
+                        marginBottom: '2px',
+                        fontWeight: '500',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}>
+                        {course.course_name}
+                      </div>
+                      {course.credits && (
+                        <div style={{ 
+                          fontSize: '10px', 
+                          color: '#9ca3af'
+                        }}>
+                          {course.credits} credits
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <input
               type="text"
               className="chat-input"
               placeholder="Type your message here..."
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
+              style={{ flex: '1' }}
             />
             <button
               type="submit"

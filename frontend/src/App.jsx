@@ -4,6 +4,7 @@ import LandingPage from "./pages/LandingPage.jsx";
 import ChatBot from "./components/ChatBot.jsx";
 import AdjunctApplicationPage from "./pages/AdjunctApplicationPage.jsx";
 import AdminPanel from "./pages/AdminPanel.jsx";
+import CourseDashboard from "./pages/CourseDashboard.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 export default function App() {
@@ -44,6 +45,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <AdminPanel />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/courses" 
+          element={
+            <ProtectedRoute>
+              <CourseDashboard />
             </ProtectedRoute>
           } 
         />

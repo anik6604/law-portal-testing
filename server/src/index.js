@@ -1081,6 +1081,223 @@ app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
   }
 });
 
+// ==================== COURSE CATALOG ENDPOINTS ====================
+
+// Get all courses with optional search
+app.get('/api/courses', async (req, res) => {
+  const { search } = req.query;
+
+  try {
+    let query = `
+      SELECT 
+        course_id,
+        course_code,
+        course_name,
+        description,
+        credits,
+        created_at,
+        updated_at
+      FROM course_catalog
+    `;
+
+    const params = [];
+
+    if (search) {
+      query += ` WHERE 
+        course_code ILIKE $1 OR 
+        course_name ILIKE $1 OR 
+        description ILIKE $1
+      `;
+      params.push(`%${search}%`);
+    }
+
+    query += ` ORDER BY course_code`;
+
+    const result = await pool.query(query, params);
+
+    res.json({
+      success: true,
+      courses: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    res.status(500).json({
+      error: 'Failed to fetch courses',
+      details: error.message
+    });
+  }
+});
+
+// Get single course by code
+app.get('/api/courses/:code', async (req, res) => {
+  const { code } = req.params;
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM course_catalog WHERE course_code = $1',
+      [code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Course not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      course: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error fetching course:', error);
+    res.status(500).json({
+      error: 'Failed to fetch course',
+      details: error.message
+    });
+  }
+});
+
+// Create new course
+app.post('/api/courses', requireTAMUEmail, async (req, res) => {
+  const { course_code, course_name, description, credits } = req.body;
+
+  // Validation
+  if (!course_code || !course_name || !description) {
+    return res.status(400).json({
+      error: 'Missing required fields',
+      details: 'course_code, course_name, and description are required'
+    });
+  }
+
+  try {
+    const result = await pool.query(`
+      INSERT INTO course_catalog (course_code, course_name, description, credits)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+    `, [course_code, course_name, description, credits || null]);
+
+    res.status(201).json({
+      success: true,
+      message: 'Course created successfully',
+      course: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error creating course:', error);
+    
+    // Handle unique constraint violation for course_code
+    if (error.code === '23505') {
+      return res.status(400).json({
+        error: 'Course code already exists',
+        details: 'A course with this code already exists in the catalog'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create course',
+      details: error.message
+    });
+  }
+});
+
+// Update course by ID
+app.put('/api/courses/:id', requireTAMUEmail, async (req, res) => {
+  const { id } = req.params;
+  const { course_code, course_name, description, credits } = req.body;
+
+  // Validation
+  if (!course_code || !course_name || !description) {
+    return res.status(400).json({
+      error: 'Missing required fields',
+      details: 'course_code, course_name, and description are required'
+    });
+  }
+
+  try {
+    // Check if course exists
+    const checkResult = await pool.query(
+      'SELECT course_id FROM course_catalog WHERE course_id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Course not found'
+      });
+    }
+
+    // Update course
+    const result = await pool.query(`
+      UPDATE course_catalog
+      SET 
+        course_code = $1,
+        course_name = $2,
+        description = $3,
+        credits = $4,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE course_id = $5
+      RETURNING *
+    `, [course_code, course_name, description, credits || null, id]);
+
+    res.json({
+      success: true,
+      message: 'Course updated successfully',
+      course: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error updating course:', error);
+    
+    // Handle unique constraint violation for course_code
+    if (error.code === '23505') {
+      return res.status(400).json({
+        error: 'Course code already exists',
+        details: 'Another course is already using this course code'
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to update course',
+      details: error.message
+    });
+  }
+});
+
+// Delete course by ID
+app.delete('/api/courses/:id', requireTAMUEmail, async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Check if course exists
+    const checkResult = await pool.query(
+      'SELECT course_id, course_code FROM course_catalog WHERE course_id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Course not found'
+      });
+    }
+
+    // Delete course
+    await pool.query(
+      'DELETE FROM course_catalog WHERE course_id = $1',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Course deleted successfully',
+      course_code: checkResult.rows[0].course_code
+    });
+  } catch (error) {
+    console.error('Error deleting course:', error);
+    res.status(500).json({
+      error: 'Failed to delete course',
+      details: error.message
+    });
+  }
+});
+
 // SPA fallback - serve index.html for all non-API/non-auth routes (MUST be last!)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
