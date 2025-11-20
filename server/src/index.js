@@ -1081,49 +1081,6 @@ app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/applicants/:id - Delete an applicant (TAMU emails only)
-app.delete('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id || isNaN(id)) {
-      return res.status(400).json({
-        error: 'Invalid applicant ID'
-      });
-    }
-
-    // First check if applicant exists
-    const checkResult = await pool.query(
-      'SELECT applicant_id, name FROM applicants WHERE applicant_id = $1',
-      [id]
-    );
-
-    if (checkResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Applicant not found'
-      });
-    }
-
-    // Delete the applicant
-    await pool.query(
-      'DELETE FROM applicants WHERE applicant_id = $1',
-      [id]
-    );
-
-    res.json({
-      success: true,
-      message: 'Applicant deleted successfully',
-      deletedId: parseInt(id)
-    });
-  } catch (error) {
-    console.error('Error deleting applicant:', error);
-    res.status(500).json({
-      error: 'Failed to delete applicant',
-      details: error.message
-    });
-  }
-});
-
 // SPA fallback - serve index.html for all non-API/non-auth routes (MUST be last!)
 if (process.env.NODE_ENV === 'production') {
   app.get('*', (req, res) => {
