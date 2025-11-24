@@ -1081,6 +1081,50 @@ app.put('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
   }
 });
 
+// Delete applicant
+app.delete('/api/admin/applicants/:id', requireTAMUEmail, async (req, res) => {
+  const id = parseInt(req.params.id);
+
+  if (isNaN(id)) {
+    return res.status(400).json({
+      error: 'Invalid applicant ID',
+      details: 'ID must be a number'
+    });
+  }
+
+  try {
+    // Check if applicant exists
+    const checkResult = await pool.query(
+      'SELECT applicant_id FROM applicants WHERE applicant_id = $1',
+      [id]
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Applicant not found',
+        details: 'No applicant found with this ID'
+      });
+    }
+
+    // Delete applicant (CASCADE will delete related resumes)
+    await pool.query(
+      'DELETE FROM applicants WHERE applicant_id = $1',
+      [id]
+    );
+
+    res.json({
+      success: true,
+      message: 'Applicant deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting applicant:', error);
+    res.status(500).json({
+      error: 'Failed to delete applicant',
+      details: error.message
+    });
+  }
+});
+
 // ==================== COURSE CATALOG ENDPOINTS ====================
 
 // Get all courses with optional search

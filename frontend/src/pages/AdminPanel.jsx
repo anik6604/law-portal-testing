@@ -14,6 +14,8 @@ function AdminPanel() {
   const [editForm, setEditForm] = useState({});
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingSave, setPendingSave] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   useEffect(() => {
     fetchApplicants();
@@ -167,6 +169,41 @@ function AdminPanel() {
   const cancelSave = () => {
     setShowConfirmModal(false);
     setPendingSave(null);
+  };
+
+  const initiateDelete = (applicant) => {
+    setPendingDelete(applicant);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      const response = await fetch(`/api/admin/applicants/${pendingDelete.applicant_id}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove from local state
+        setApplicants(prev => prev.filter(app => app.applicant_id !== pendingDelete.applicant_id));
+        setAllApplicants(prev => prev.filter(app => app.applicant_id !== pendingDelete.applicant_id));
+        alert('Applicant deleted successfully!');
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting applicant:', error);
+      alert('Failed to delete applicant. Please try again.');
+    } finally {
+      setShowDeleteModal(false);
+      setPendingDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setPendingDelete(null);
   };
 
   const formatDate = (dateString) => {
@@ -578,20 +615,36 @@ function AdminPanel() {
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => startEditing(applicant)}
-                            style={{
-                              padding: '6px 12px',
-                              backgroundColor: '#500000',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.85rem'
-                            }}
-                          >
-                            Edit
-                          </button>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => startEditing(applicant)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#500000',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => initiateDelete(applicant)}
+                              style={{
+                                padding: '6px 12px',
+                                backgroundColor: '#d32f2f',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -663,6 +716,80 @@ function AdminPanel() {
                 }}
               >
                 Confirm Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && pendingDelete && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+            maxWidth: '400px',
+            width: '90%'
+          }}>
+            <h2 style={{ marginBottom: '20px', color: '#d32f2f' }}>Confirm Delete</h2>
+            <p style={{ marginBottom: '20px', color: '#333' }}>
+              Are you sure you want to permanently delete this applicant?
+            </p>
+            <div style={{
+              marginBottom: '20px',
+              padding: '15px',
+              backgroundColor: '#f5f5f5',
+              borderRadius: '4px',
+              borderLeft: '4px solid #d32f2f'
+            }}>
+              <p style={{ margin: '5px 0', fontWeight: 'bold' }}>{pendingDelete.name}</p>
+              <p style={{ margin: '5px 0', fontSize: '0.9rem', color: '#666' }}>{pendingDelete.email}</p>
+            </div>
+            <p style={{ marginBottom: '20px', color: '#d32f2f', fontSize: '0.9rem', fontWeight: 'bold' }}>
+              This action cannot be undone!
+            </p>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={cancelDelete}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#999',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#d32f2f',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  fontWeight: 'bold'
+                }}
+              >
+                Delete Permanently
               </button>
             </div>
           </div>
