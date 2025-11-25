@@ -1,15 +1,34 @@
+
 # TAMU Law Resume Portal
 
 A secure, full-stack web application for Texas A&M University School of Law to assist with adjunct faculty hiring, resume management, and AI-powered candidate search.
 
 ---
 
+## Key Features
+
+- **Azure AD SSO Authentication** (TAMU NetID)
+- **Admin Dashboard**: Search, inline edit, CSV export, delete
+- **AI-Powered Search**: GPT-4o-mini + semantic vector search (pgvector)
+- **Resume Management**: Upload, extract, and store resumes in AWS S3
+- **PDF Text Extraction**: Automatic on upload
+- **Batch AI Analysis**: 15 candidates per batch, concurrent processing
+- **Strict Confidence Scoring**: Only direct experience (4+) shown
+- **Pre-signed S3 URLs**: Secure, 7-day access to resumes
+- **Chatbot UI**: Course-based candidate search, clickable resume links
+- **Infrastructure as Code**: AWS CDK, Docker Compose for local dev
+- **Production-Ready**: Encrypted RDS, S3, Redis, Render.com deployment
+
+---
+
 ## Table of Contents
 - [Overview](#overview)
+- [Key Features](#key-features)
+- [Project Structure](#project-structure)
+- [Backend Breakdown](#backend-breakdown)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Installation](#installation)
-- [Project Structure](#project-structure)
 - [Usage](#usage)
 - [AI-Powered Search](#ai-powered-search)
 - [Database Architecture](#database-architecture)
@@ -22,51 +41,122 @@ A secure, full-stack web application for Texas A&M University School of Law to a
 
 ---
 
-## Overview
+## Backend Breakdown
 
-The TAMU Law Resume Portal is a production-ready full-stack application that manages adjunct faculty applications with AI-powered candidate search capabilities. Built with React, Node.js, AWS RDS PostgreSQL, S3, and OpenAI's GPT API, it provides intelligent resume analysis and semantic search functionality with enterprise-grade cloud infrastructure.
+**Location:** `server/`
 
-**Key Features:**
-- Full-stack application with React frontend and Node.js backend
-- **Azure AD SSO Authentication** with TAMU NetID for secure access
-- **Admin Dashboard** with search, inline editing, and CSV export
-- **AWS RDS PostgreSQL** with KMS encryption and pgvector for semantic search
-- **AWS S3** for secure resume storage with pre-signed URLs (7-day expiration)
-- AI-powered candidate matching using OpenAI GPT-4o-mini with strict confidence scoring
-- Automatic PDF text extraction and embedding generation
-- Vector similarity search for scalable candidate matching
-- Secure application submission with direct S3 uploads and role/status tracking
-- One-to-one email logic (latest submission per applicant)
-- **Chat history persistence** with PostgreSQL storage across sessions
-- **Production-ready AWS infrastructure** with encryption at rest and in transit
-- Beautiful UI with TAMU Law building background imagery
+### Main Files
+- `src/index.js`: Main Express server, all API endpoints, batching logic, AI search, S3 integration
+- `src/auth.js`: Azure AD (MSAL) authentication, session/cookie logic
+- `src/embeddings.js`: Embedding generation using @xenova/transformers (MiniLM)
+- `src/s3-utils.js`: AWS S3 upload/download, pre-signed URL helpers
+- `generate-embeddings.js`: Script to backfill embeddings for existing resumes
+- `test-ai-search.js`: Script to test AI search pipeline
+
+### Key Endpoints
+- `POST /api/applications`: Submit new application (file upload, S3, embedding)
+- `GET /api/applications`: List all applications
+- `GET /api/admin/applicants`: Admin search (with optional query)
+- `PUT /api/admin/applicants/:id`: Update applicant (admin only)
+- `DELETE /api/admin/applicants/:id`: Delete applicant (admin only)
+- `POST /api/ai-search`: AI-powered candidate search (course-based)
+- `GET /health`: Health check
+
+### Core Logic
+- **Batching**: Splits candidates into batches of 15 for GPT-4o-mini API
+- **Semantic Search**: Uses pgvector for fast vector similarity
+- **S3 Integration**: Uploads resumes, generates pre-signed URLs
+- **Session Management**: Express-session with Redis (production)
+- **Security**: All secrets in `.env`, CORS restricted, input validation
+
+### Navigation
+- All backend code is in `server/`
+- Main entry: `server/src/index.js`
+- Auth/session: `server/src/auth.js`
+- AI/embeddings: `server/src/embeddings.js`
+- S3 helpers: `server/src/s3-utils.js`
+- Utility scripts: `server/generate-embeddings.js`, `server/test-ai-search.js`
 
 ---
 
-## AWS Infrastructure
 
-### Production Cloud Architecture
+## Project Structure
 
-The application is deployed with enterprise-grade AWS infrastructure:
+```
+github-setup-tamu-law/
+│
+├── abet-demo/                  # Standalone ABET demo (not part of main app)
+├── db/
+│   └── init/
+│       ├── 001_schema.sql      # Database schema (tables, extensions)
+│       └── 002_data.sql        # Sample data for local dev
+├── docker-compose.yml          # Local dev: Postgres (with pgvector)
+├── frontend/
+│   ├── public/                 # Static assets (images, redirects)
+│   ├── src/
+│   │   ├── assets/             # React logo, etc.
+│   │   ├── components/         # React UI components (ChatBot, TopBar, etc.)
+│   │   ├── pages/              # Page-level React components (AdminPanel, Dashboard, etc.)
+│   │   ├── utils/              # Frontend utility functions (auth.js)
+│   │   ├── App.jsx             # Main React app entry
+│   │   ├── main.jsx            # ReactDOM render
+│   │   ├── App.css, index.css, theme.css # Styles
+│   ├── index.html              # Main HTML entry
+│   ├── package.json            # Frontend dependencies
+│   ├── vite.config.js          # Vite config (proxy, build)
+│   └── eslint.config.js        # Linting rules
+├── infra/
+│   ├── src/
+│   │   ├── bin/deploy.ts       # CDK deploy script
+│   │   └── lib/rds-stack.ts    # CDK RDS stack definition
+│   ├── cdk.json, tsconfig.json # CDK config
+│   └── package.json            # Infra dependencies
+├── server/
+│   ├── src/
+│   │   ├── index.js            # Main Express server
+│   │   ├── auth.js             # Azure AD/MSAL logic
+│   │   ├── embeddings.js       # Embedding generation (MiniLM)
+│   │   └── s3-utils.js         # AWS S3 upload/download helpers
+│   ├── generate-embeddings.js  # Script to backfill embeddings
+│   ├── test-ai-search.js       # Script to test AI search
+│   ├── package.json            # Backend dependencies
+│   └── .env.example            # Example server env vars
+├── setup.sh                    # Local setup helper script
+├── README.md                   # This file
+└── .gitignore                  # Ignore node_modules, .env, etc.
+```
 
-#### AWS RDS PostgreSQL 16.8
-- **Instance:** `lawrdsstack-lawpostgres-enc`
-- **Encryption:** AWS KMS encryption at rest
-- **Region:** us-east-1
-- **Instance Class:** db.t3.micro
-- **Storage:** Encrypted with AWS-managed KMS key
-- **SSL/TLS:** Enabled for encryption in transit
-- **Public Access:** Enabled with security group restrictions
-- **Extensions:** pgvector v0.8.0 for semantic search
-- **Backups:** Automated snapshots enabled
+### File/Folder Descriptions
 
-#### AWS S3 Storage
-- **Bucket:** `resume-storage-tamu-law`
-- **Region:** us-east-2
-- **Encryption:** SSE-S3 (server-side encryption)
-- **Access:** Private bucket with pre-signed URLs
+- **abet-demo/**: Standalone ABET demo (not part of main production app)
+- **db/init/**: SQL schema and sample data for local development
+- **docker-compose.yml**: Local Postgres (with pgvector) for dev
+- **frontend/**: React app (Vite, React Router, all UI)
+  - **public/**: Static assets (images, redirects)
+  - **src/components/**: Reusable React UI components (ChatBot, TopBar, etc.)
+  - **src/pages/**: Page-level React components (AdminPanel, Dashboard, etc.)
+  - **src/utils/**: Frontend utility functions (auth.js)
+  - **App.jsx, main.jsx**: Main React entry points
+  - **App.css, index.css, theme.css**: Styles
+  - **vite.config.js**: Vite config (proxy, build)
+  - **eslint.config.js**: Linting rules
+- **infra/**: AWS CDK infrastructure as code (TypeScript)
+  - **src/bin/deploy.ts**: CDK deploy script
+  - **src/lib/rds-stack.ts**: CDK RDS stack definition
+  - **cdk.json, tsconfig.json**: CDK config
+- **server/**: Node.js backend (Express, AI, S3, DB)
+  - **src/index.js**: Main Express server
+  - **src/auth.js**: Azure AD/MSAL logic
+  - **src/embeddings.js**: Embedding generation (MiniLM)
+  - **src/s3-utils.js**: AWS S3 upload/download helpers
+  - **generate-embeddings.js**: Script to backfill embeddings
+  - **test-ai-search.js**: Script to test AI search
+  - **package.json**: Backend dependencies
+  - **.env.example**: Example server env vars
+- **setup.sh**: Local setup helper script
+- **README.md**: This file
+- **.gitignore**: Ignore node_modules, .env, etc.
 - **Pre-signed URL Expiration:** 7 days (604,800 seconds)
-- **Public Access:** Blocked (all public access blocks enabled)
 - **Storage:** 97+ resume PDFs with organized naming
 
 #### Infrastructure as Code
@@ -739,21 +829,89 @@ cd frontend && npm install --include=dev && npm run build && cd ../server && npm
 cd server && node src/index.js
 ```
 
-**Environment Variables (13 total):**
-- `NODE_ENV=production`
-- `PORT=4000`
-- `AZURE_AD_CLIENT_ID` - Azure AD app client ID
-- `AZURE_AD_CLIENT_SECRET` - Azure AD app secret
-- `AZURE_AD_TENANT_ID` - TAMU tenant ID
-- `AZURE_AD_REDIRECT_URI` - https://law-portal-testing.onrender.com/auth/callback
-- `SESSION_SECRET` - Session encryption key
-- `REDIS_URL` - Redis connection string
-- `DATABASE_URL` - PostgreSQL connection string
-- `AWS_ACCESS_KEY_ID` - AWS credentials for S3
-- `AWS_SECRET_ACCESS_KEY` - AWS secret key
-- `AWS_REGION=us-east-2`
-- `S3_BUCKET_NAME=resume-storage-tamu-law`
-- `OPENAI_API_KEY` - OpenAI API key
+
+**Environment Variables (explained):**
+
+| Variable                | Purpose |
+|-------------------------|---------|
+| `NODE_ENV`              | Set to `production` for deployed environments (enables security, disables dev logs) |
+| `PORT`                  | Port for Express server (default: 4000) |
+| `AZURE_AD_CLIENT_ID`    | Azure AD application client ID for SSO login |
+| `AZURE_AD_CLIENT_SECRET`| Azure AD app secret for SSO authentication |
+| `AZURE_AD_TENANT_ID`    | Azure AD tenant ID (TAMU organization) |
+| `AZURE_AD_REDIRECT_URI` | OAuth2 redirect URI for Azure AD login |
+| `SESSION_SECRET`        | Secret for encrypting session cookies |
+| `REDIS_URL`             | Redis connection string for session storage (optional, required in production) |
+| `DATABASE_URL`          | PostgreSQL connection string (includes credentials, host, db name, SSL) |
+| `AWS_ACCESS_KEY_ID`     | AWS IAM access key for S3 uploads/downloads |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key for S3 |
+| `AWS_REGION`            | AWS region for S3 and other services (e.g., `us-east-2`) |
+| `S3_BUCKET_NAME`        | Name of the S3 bucket for resume storage |
+| `OPENAI_API_KEY`        | OpenAI API key for GPT-4o-mini analysis |
+
+**How to set up .env:**
+1. Copy `.env.example` to `.env` in both `server/` and `frontend/` (if needed)
+2. Fill in each variable with your own credentials (never commit secrets)
+3. For local dev, you can use dummy values for Azure AD and AWS if not testing those features
+
+---
+
+## Local Development Instructions
+
+1. Clone the repository:
+  ```bash
+  git clone https://github.com/FA25-CSCE482-capstone/github-setup-tamu-law.git
+  cd github-setup-tamu-law
+  ```
+2. Set up environment variables:
+  ```bash
+  cd server
+  cp .env.example .env
+  # Edit .env and fill in required values
+  cd ../frontend
+  cp .env.example .env
+  # Edit .env and set VITE_API_URL=http://localhost:4000
+  ```
+3. Start the database (Postgres with pgvector):
+  ```bash
+  docker-compose up -d
+  # Wait for DB to be healthy
+  ```
+4. Install and start the backend:
+  ```bash
+  cd server
+  npm install
+  node src/index.js
+  # Or use pm2 for process management
+  ```
+5. Install and start the frontend:
+  ```bash
+  cd frontend
+  npm install
+  npm run dev
+  ```
+6. Visit [http://localhost:5173](http://localhost:5173) in your browser
+
+---
+
+## Production Deployment (Render.com)
+
+1. Push code to your GitHub repo (e.g., `anik6604/law-portal-testing`)
+2. Connect the repo to Render.com and set up a new web service
+3. Set all required environment variables in the Render dashboard
+4. Use these build/start commands:
+  - **Build Command:**
+    ```bash
+    cd frontend && npm install --include=dev && npm run build && cd ../server && npm install --omit=dev
+    ```
+  - **Start Command:**
+    ```bash
+    cd server && node src/index.js
+    ```
+5. On push to `main`, Render will auto-deploy and restart the service
+6. Visit your Render URL (e.g., https://law-portal-testing.onrender.com)
+
+---
 
 ### Critical Configuration for OAuth Behind Proxy
 
