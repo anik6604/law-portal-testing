@@ -140,11 +140,11 @@ github-setup-tamu-law/
   - **App.css, index.css, theme.css**: Styles
   - **vite.config.js**: Vite config (proxy, build)
   - **eslint.config.js**: Linting rules
-- **infra/**: AWS CDK infrastructure as code (TypeScript)
+  - **infra/**: AWS CDK infrastructure as code (TypeScript)
   - **src/bin/deploy.ts**: CDK deploy script
   - **src/lib/rds-stack.ts**: CDK RDS stack definition
   - **cdk.json, tsconfig.json**: CDK config
-- **server/**: Node.js backend (Express, AI, S3, DB)
+  - **server/**: Node.js backend (Express, AI, S3, DB)
   - **src/index.js**: Main Express server
   - **src/auth.js**: Azure AD/MSAL logic
   - **src/embeddings.js**: Embedding generation (MiniLM)
@@ -153,11 +153,9 @@ github-setup-tamu-law/
   - **test-ai-search.js**: Script to test AI search
   - **package.json**: Backend dependencies
   - **.env.example**: Example server env vars
-- **setup.sh**: Local setup helper script
-- **README.md**: This file
-- **.gitignore**: Ignore node_modules, .env, etc.
-- **Pre-signed URL Expiration:** 7 days (604,800 seconds)
-- **Storage:** 97+ resume PDFs with organized naming
+  - **setup.sh**: Local setup helper script
+  - **README.md**: This file
+  - **.gitignore**: Ignore node_modules, .env, etc.
 
 #### Infrastructure as Code
 - **AWS CDK:** TypeScript infrastructure definitions
@@ -263,6 +261,25 @@ embedding           vector(384)
 uploaded_at         TIMESTAMPTZ DEFAULT NOW()
 ```
 
+#### `chat_sessions`
+```sql
+session_id      SERIAL PRIMARY KEY
+title           VARCHAR(500) NOT NULL
+created_by_email VARCHAR(200) NOT NULL
+created_by_name VARCHAR(200)
+created_at      TIMESTAMPTZ DEFAULT NOW()
+updated_at      TIMESTAMPTZ DEFAULT NOW()
+```
+
+#### `chat_messages`
+```sql
+message_id      SERIAL PRIMARY KEY
+session_id      INT NOT NULL REFERENCES chat_sessions(session_id) ON DELETE CASCADE
+role            VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant'))
+content         TEXT NOT NULL
+created_at      TIMESTAMPTZ DEFAULT NOW()
+```
+
 **Example S3 URL:** `https://resume-storage-tamu-law.s3.us-east-2.amazonaws.com/john_doe_resume.pdf`
 
 ### Vector Index
@@ -277,7 +294,8 @@ CREATE INDEX resumes_embedding_idx
 - **RDS Connection:** SSL/TLS encryption with `sslmode=no-verify` for AWS RDS self-signed certificates
 - **Connection Pooling:** pg.Pool for efficient database connection management
 - **S3 Integration:** Direct file uploads with AWS SDK v3
-- **Pre-signed URLs:** Temporary 7-day access links generated on-demand
+- **Pre-signed URLs:** Temporary 7-day access links generated on-demand (default: 7 days)
+- **Storage:** 97+ resume PDFs with organized naming
 
 ### Relationships
 - One-to-one: One applicant → One resume
@@ -587,7 +605,6 @@ This recreates the database with fresh schema.tional adjunct application form wi
 - [Project Structure](#project-structure)
 - [Usage](#usage)
 - [Form Behavior](#form-behavior)
-- [Planned Integrations](#planned-integrations)
 - [Credits](#credits)
 - [License](#license)
 - [Contact](#contact)
@@ -599,7 +616,6 @@ The TAMU Law Resume Portal provides a foundation for managing adjunct faculty ap
 It is built with React and will later integrate with Texas A&M’s NetID system and an on-premise backend database for secure resume storage and AI-assisted querying.
 
 **Current functionality:**
-- Mock login screen that simulates authentication  
 - Landing page with navigation tiles  
 - Adjunct application submission form with validation and confirmation  
 
@@ -1002,7 +1018,7 @@ frontend/
 
 ## Usage
 1. Run `npm run dev` and open [http://localhost:5173/](http://localhost:5173/)  
-2. Click **Login with NetID** to enter the portal (mock login)  
+2. Click **Login with NetID** to enter the portal (SSO authentication)  
 3. Use the **Adjunct Application Portal** tile to access the form  
 4. Fill in required fields and upload a PDF resume  
 5. Confirm submission in the modal  
@@ -1030,22 +1046,6 @@ frontend/
 
 ---
 
-## Planned Integrations
-
-### NetID / Entra ID Authentication
-- Future integration using Microsoft Entra ID (OIDC)  
-- Will replace the mock login and restrict access to TAMU accounts  
-
-### Backend and Database
-- Planned backend: Node.js + Express + PostgreSQL/MySQL  
-- Endpoint: `/api/applications` for storing submissions  
-- Schema will include applicant data and file metadata  
-
-### AI Resume Processing
-- Future local AI service to extract structured data from PDF resumes  
-- Enables search queries such as “Who can teach Cyber Law?”  
-
----
 
 ## Future Enhancements
 
