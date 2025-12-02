@@ -33,6 +33,7 @@ A secure, full-stack web application for Texas A&M University School of Law to a
 - [AI-Powered Search](#ai-powered-search)
 - [Database Architecture](#database-architecture)
 - [Vector Embeddings](#vector-embeddings)
+- [Infrastructure & Deployment](#infrastructure--deployment)
 - [API Documentation](#api-documentation)
 - [Troubleshooting](#troubleshooting)
 - [Credits](#credits)
@@ -85,77 +86,90 @@ A secure, full-stack web application for Texas A&M University School of Law to a
 ```
 github-setup-tamu-law/
 │
-├── abet-demo/                  # Standalone ABET demo (not part of main app)
 ├── db/
 │   └── init/
-│       ├── 001_schema.sql      # Database schema (tables, extensions)
-│       └── 002_data.sql        # Sample data for local dev
-├── docker-compose.yml          # Local dev: Postgres (with pgvector)
+│       └── 001_schema.sql      # PostgreSQL schema with pgvector (5 tables)
+├── docker-compose.yml          # Local dev: PostgreSQL 16 with pgvector
 ├── frontend/
-│   ├── public/                 # Static assets (images, redirects)
+│   ├── public/                 # Static assets (images, favicons)
 │   ├── src/
 │   │   ├── assets/             # React logo, etc.
-│   │   ├── components/         # React UI components (ChatBot, TopBar, etc.)
-│   │   ├── pages/              # Page-level React components (AdminPanel, Dashboard, etc.)
+│   │   ├── components/         # React UI components (ChatBot, TopBar, TileCard)
+│   │   ├── pages/              # Page-level React components (AdminPanel, LandingPage, LoginPage)
 │   │   ├── utils/              # Frontend utility functions (auth.js)
 │   │   ├── App.jsx             # Main React app entry
 │   │   ├── main.jsx            # ReactDOM render
-│   │   ├── App.css, index.css, theme.css # Styles
+│   │   └── *.css               # Styles (App.css, index.css, theme.css)
 │   ├── index.html              # Main HTML entry
 │   ├── package.json            # Frontend dependencies
 │   ├── vite.config.js          # Vite config (proxy, build)
 │   └── eslint.config.js        # Linting rules
-├── infra/
+├── infra/                      # AWS CDK infrastructure as code (TypeScript)
 │   ├── src/
-│   │   ├── bin/deploy.ts       # CDK deploy script
-│   │   └── lib/rds-stack.ts    # CDK RDS stack definition
-│   ├── cdk.json, tsconfig.json # CDK config
-│   └── package.json            # Infra dependencies
+│   │   ├── bin/deploy.ts       # CDK deploy script (all resources in us-east-1)
+│   │   └── lib/
+│   │       ├── rds-stack.ts    # PostgreSQL 16.8 with pgvector, encrypted
+│   │       ├── s3-stack.ts     # Resume storage with CORS, lifecycle policies
+│   │       └── ec2-stack.ts    # Optional web server (if not using Render)
+│   ├── cdk.json                # CDK configuration
+│   ├── tsconfig.json           # TypeScript config
+│   ├── package.json            # Infrastructure dependencies
+│   └── README.md               # Infrastructure deployment guide
+├── scripts/
+│   └── ingest-resumes.js       # Bulk resume upload script
 ├── server/
 │   ├── src/
-│   │   ├── index.js            # Main Express server
-│   │   ├── auth.js             # Azure AD/MSAL logic
-│   │   ├── embeddings.js       # Embedding generation (MiniLM)
+│   │   ├── index.js            # Main Express server (all API endpoints)
+│   │   ├── auth.js             # Azure AD/MSAL authentication
+│   │   ├── embeddings.js       # Vector embedding generation (MiniLM)
 │   │   └── s3-utils.js         # AWS S3 upload/download helpers
 │   ├── generate-embeddings.js  # Script to backfill embeddings
-│   ├── test-ai-search.js       # Script to test AI search
+│   ├── test-ai-search.js       # Script to test AI search pipeline
 │   ├── package.json            # Backend dependencies
-│   └── .env.example            # Example server env vars
+│   └── .env.example            # Example server environment variables
 ├── setup.sh                    # Local setup helper script
+├── CONTRIBUTING.md             # Contribution guidelines
+├── INFRASTRUCTURE.md           # Complete AWS resource documentation
 ├── README.md                   # This file
 └── .gitignore                  # Ignore node_modules, .env, etc.
 ```
 
 ### File/Folder Descriptions
 
-- **abet-demo/**: Standalone ABET demo (not part of main production app)
-- **db/init/**: SQL schema and sample data for local development
-- **docker-compose.yml**: Local Postgres (with pgvector) for dev
-- **frontend/**: React app (Vite, React Router, all UI)
-  - **public/**: Static assets (images, redirects)
-  - **src/components/**: Reusable React UI components (ChatBot, TopBar, etc.)
-  - **src/pages/**: Page-level React components (AdminPanel, Dashboard, etc.)
-  - **src/utils/**: Frontend utility functions (auth.js)
+- **db/init/**: SQL schema (001_schema.sql) for PostgreSQL with pgvector
+- **docker-compose.yml**: Local PostgreSQL 16 with pgvector for development
+- **frontend/**: React app (Vite, React Router, all UI components)
+  - **public/**: Static assets (images, hero banner, TAMU Law wordmark)
+  - **src/components/**: Reusable React UI components (ChatBot, TopBar, TileCard)
+  - **src/pages/**: Page-level React components (AdminPanel, LandingPage, LoginPage, AdjunctApplicationPage)
+  - **src/utils/**: Frontend utility functions (auth.js for authentication helpers)
   - **App.jsx, main.jsx**: Main React entry points
-  - **App.css, index.css, theme.css**: Styles
-  - **vite.config.js**: Vite config (proxy, build)
-  - **eslint.config.js**: Linting rules
-  - **infra/**: AWS CDK infrastructure as code (TypeScript)
-  - **src/bin/deploy.ts**: CDK deploy script
-  - **src/lib/rds-stack.ts**: CDK RDS stack definition
-  - **cdk.json, tsconfig.json**: CDK config
-  - **server/**: Node.js backend (Express, AI, S3, DB)
-  - **src/index.js**: Main Express server
-  - **src/auth.js**: Azure AD/MSAL logic
-  - **src/embeddings.js**: Embedding generation (MiniLM)
-  - **src/s3-utils.js**: AWS S3 upload/download helpers
-  - **generate-embeddings.js**: Script to backfill embeddings
-  - **test-ai-search.js**: Script to test AI search
-  - **package.json**: Backend dependencies
-  - **.env.example**: Example server env vars
-  - **setup.sh**: Local setup helper script
-  - **README.md**: This file
-  - **.gitignore**: Ignore node_modules, .env, etc.
+  - **App.css, index.css, theme.css**: Styles with TAMU branding
+  - **vite.config.js**: Vite config (dev proxy to port 4000, production build)
+  - **eslint.config.js**: Linting rules and code style enforcement
+- **infra/**: AWS CDK infrastructure as code (TypeScript)
+  - **src/bin/deploy.ts**: CDK deploy script (all resources in us-east-1)
+  - **src/lib/rds-stack.ts**: PostgreSQL 16.8 with pgvector, encrypted, daily backups
+  - **src/lib/s3-stack.ts**: Resume storage with CORS, encryption, lifecycle policies
+  - **src/lib/ec2-stack.ts**: Optional EC2 web server (alternative to Render)
+  - **cdk.json, tsconfig.json**: CDK configuration files
+  - **README.md**: Complete infrastructure deployment guide
+- **scripts/**: Utility scripts
+  - **ingest-resumes.js**: Bulk resume upload and embedding generation
+- **server/**: Node.js backend (Express, AI, S3, Database)
+  - **src/index.js**: Main Express server with all API endpoints
+  - **src/auth.js**: Azure AD/MSAL OAuth2 authentication logic
+  - **src/embeddings.js**: Vector embedding generation (all-MiniLM-L6-v2)
+  - **src/s3-utils.js**: AWS S3 upload/download and pre-signed URL helpers
+  - **generate-embeddings.js**: Script to backfill embeddings for existing resumes
+  - **test-ai-search.js**: Script to test AI search pipeline end-to-end
+  - **package.json**: Backend dependencies (Express, OpenAI, AWS SDK, pg, etc.)
+  - **.env.example**: Example server environment variables template
+- **setup.sh**: Automated local setup helper script
+- **CONTRIBUTING.md**: Contribution guidelines and development workflow
+- **INFRASTRUCTURE.md**: Complete AWS resource inventory, costs, and management guide
+- **README.md**: This file - comprehensive project documentation
+- **.gitignore**: Ignore node_modules, .env, logs, and sensitive files
 
 #### Infrastructure as Code
 - **AWS CDK:** TypeScript infrastructure definitions
@@ -985,6 +999,81 @@ Health check endpoint.
 - Database dumps excluded from repository (`.sql` files ignored)
 - Automated snapshot encryption for data migration
 - Regular dependency updates for security patches
+
+---
+
+## Infrastructure & Deployment
+
+### AWS Resources
+
+The application uses the following AWS infrastructure:
+
+| Resource | Type | Purpose | Cost/Month |
+|----------|------|---------|------------|
+| **RDS** | PostgreSQL 16.8 (db.t3.micro) | Database with pgvector | ~$15 |
+| **S3** | Standard storage (53 MiB) | Resume PDFs | ~$0.10 |
+| **Secrets Manager** | 1 secret | Database credentials | $0.40 |
+| **EC2** | t3.micro (optional) | Hosting | ~$7.50  |
+| **VPC** | Default VPC | Networking | FREE |
+| **Total** | - | - | **$15-23/month** |
+
+** EC2 is Optional**: You can use Render (free tier or $7/month) instead of EC2 to save costs.
+
+### Deployment Options
+
+#### Option 1: Render + AWS (Recommended)
+- **Cost**: ~$15-18/month
+- **Backend**: Render web service (free tier or $7/month)
+- **Database**: AWS RDS PostgreSQL
+- **Storage**: AWS S3
+- **Pros**: Easy deployment, auto-scaling, cheaper
+- **Status**: Currently deployed 
+
+#### Option 2: AWS EC2 + RDS + S3
+- **Cost**: ~$22-25/month  
+- **Hosting**: EC2 t3.micro instance (`i-0f6a391245b1f0d26`)
+- **Public IP**: `44.193.183.185`
+- **Pros**: Full AWS integration, more control
+- **Status**: EC2 instance currently running 
+
+#### Option 3: Local Development Only
+- **Cost**: ~$15/month (just RDS + S3)
+- **Backend**: Local Node.js + Docker
+- **Pros**: Cheapest for development
+- **Status**: Available for testing
+
+### Infrastructure as Code
+
+The `infra/` directory contains AWS CDK stacks for deploying infrastructure:
+
+```bash
+cd infra
+npm install
+
+# Deploy RDS database
+cdk deploy LawRdsStack -c myIp=$(curl -s ifconfig.me)
+
+# Optional: Deploy EC2 instance (for AWS hosting)
+cdk deploy LawEc2Stack
+```
+
+**Full Documentation**:
+- **[INFRASTRUCTURE.md](INFRASTRUCTURE.md)** - Complete AWS resource inventory, costs, and management
+- **[infra/README.md](infra/README.md)** - CDK deployment guide and options
+
+### Current Infrastructure Status
+
+ **Active Resources**:
+- RDS: `lawrdsstack-lawpostgres-enc.ca32806iskx7.us-east-1.rds.amazonaws.com`
+- S3: `resume-storage-tamu-law` (112 objects, 53.1 MiB)
+- EC2: `i-0f6a391245b1f0d26` (running - can be stopped to save $7.50/month)
+- Secrets Manager: Database credentials stored securely
+
+ **Cost Optimized**:
+- No NAT Gateways (saves $32/month)
+- No Load Balancer (saves $16/month)
+- Using default VPC (free)
+- S3 lifecycle policies configured
 
 ---
 
