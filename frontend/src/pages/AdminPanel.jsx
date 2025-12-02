@@ -1,3 +1,12 @@
+/**
+ * Admin Panel Component
+ * 
+ * Administrative dashboard for managing applicants with full CRUD operations,
+ * inline editing, search, and CSV export.
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TopBar from '../components/TopBar';

@@ -1,3 +1,12 @@
+/**
+ * TAMU Law Adjunct Hiring Portal - Main Server
+ * 
+ * Express.js backend server handling authentication, file uploads, 
+ * AI-powered candidate search, and admin CRUD operations.
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';

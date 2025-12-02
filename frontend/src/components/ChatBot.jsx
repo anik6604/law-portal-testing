@@ -1,3 +1,12 @@
+/**
+ * AI Chatbot Component
+ * 
+ * Interactive chatbot interface for AI-powered candidate search with 
+ * course selection, chat history, and markdown-rendered resume links.
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import TopBar from "./TopBar.jsx";

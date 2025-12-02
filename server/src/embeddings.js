@@ -1,8 +1,24 @@
+/**
+ * Vector Embedding Generation Module
+ * 
+ * Generates semantic embeddings for resume text using sentence-transformers/all-MiniLM-L6-v2.
+ * Enables vector similarity search for AI-powered candidate matching.
+ * 
+ * Model: 384-dimensional embeddings, ~50ms per generation on CPU (no GPU required)
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import { pipeline } from '@xenova/transformers';
 
 // Initialize the embedding model (happens once, cached)
 let embedder = null;
 
+/**
+ * Get or initialize the embedding model
+ * @private
+ * @returns {Promise<Function>} - Transformer pipeline for feature extraction
+ */
 async function getEmbedder() {
   if (!embedder) {
     console.log('Loading embedding model (first time only, ~50MB download)...');

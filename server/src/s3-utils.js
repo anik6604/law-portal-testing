@@ -1,3 +1,12 @@
+/**
+ * AWS S3 Utilities
+ * 
+ * Helper functions for generating pre-signed URLs for secure temporary access to resume files.
+ * Max expiration: 7 days (AWS SigV4 limit)
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 

@@ -340,6 +340,466 @@ Uses cosine similarity to find most relevant candidates.
 
 ---
 
+## Code Documentation
+
+### Core Functions and Modules
+
+#### Authentication System (`server/src/auth.js`)
+
+**Purpose:** Azure AD OAuth2 authentication with MSAL for TAMU NetID SSO
+
+**Key Functions:**
+
+##### `configureAuth(app)`
+Configures MSAL authentication and session middleware.
+
+```javascript
+/**
+ * Configure MSAL authentication with Azure AD
+ * @param {Express.Application} app - Express app instance
+ * @returns {boolean} - True if configured successfully, false otherwise
+ * @example
+ * import { configureAuth } from './auth.js';
+ * const authConfigured = configureAuth(app);
+ */
+```
+
+**Features:**
+- Azure AD ConfidentialClientApplication setup
+- Redis session store (production) or MemoryStore (local dev)
+- Secure cookie configuration (SameSite='none' for OAuth)
+- Trust proxy setting for deployment behind reverse proxy
+
+##### `requireAuth(req, res, next)`
+Middleware to check if user is authenticated.
+
+```javascript
+/**
+ * Middleware to protect routes requiring any authenticated user
+ * @middleware
+ * @example
+ * app.get('/api/profile', requireAuth, (req, res) => {...})
+ */
+```
+
+##### `requireTAMUEmail(req, res, next)`
+Middleware to check if user has TAMU email (`@tamu.edu` or `@law.tamu.edu`).
+
+```javascript
+/**
+ * Middleware to restrict access to TAMU faculty/staff
+ * @middleware
+ * @example
+ * app.get('/api/admin/applicants', requireTAMUEmail, (req, res) => {...})
+ */
+```
+
+#### Vector Embeddings (`server/src/embeddings.js`)
+
+**Purpose:** Generate semantic embeddings for resume text using Hugging Face transformers
+
+**Key Functions:**
+
+##### `generateEmbedding(text)`
+Generates 384-dimensional vector embedding for text.
+
+```javascript
+/**
+ * Generate embedding vector for resume text
+ * @param {string} text - Text to embed (auto-truncated to 5000 chars)
+ * @returns {Promise<number[]>} - 384-dimensional vector
+ * @throws {Error} - If model loading or embedding generation fails
+ * @example
+ * const embedding = await generateEmbedding("Stanford Law, 10 years cybersecurity");
+ * // Returns: [0.123, -0.456, 0.789, ... ] (384 numbers)
+ */
+```
+
+**Technical Details:**
+- Model: `Xenova/all-MiniLM-L6-v2` (sentence-transformers)
+- Output: Mean pooling with normalization
+- Caching: Model loaded once and cached in memory
+- Performance: ~50ms per embedding on modern CPU
+
+##### `cosineSimilarity(a, b)`
+Calculates cosine similarity between two vectors.
+
+```javascript
+/**
+ * Calculate cosine similarity between two embeddings
+ * @param {number[]} a - First 384-dim vector
+ * @param {number[]} b - Second 384-dim vector
+ * @returns {number} - Similarity score (0.0 to 1.0)
+ * @example
+ * const similarity = cosineSimilarity(vectorA, vectorB);
+ * // Returns: 0.87 (87% similar)
+ */
+```
+
+#### S3 Utilities (`server/src/s3-utils.js`)
+
+**Purpose:** AWS S3 file operations for resume storage
+
+**Key Functions:**
+
+##### `uploadFileToS3(fileBuffer, fileName)`
+Uploads file buffer to S3 bucket.
+
+```javascript
+/**
+ * Upload file to AWS S3 bucket
+ * @param {Buffer} fileBuffer - File contents from multer
+ * @param {string} fileName - Destination filename (e.g., "john_doe_resume.pdf")
+ * @returns {Promise<string>} - S3 URL of uploaded file
+ * @example
+ * const s3Url = await uploadFileToS3(req.file.buffer, "resume_123.pdf");
+ * // Returns: "https://resume-storage-tamu-law.s3.us-east-2.amazonaws.com/resume_123.pdf"
+ */
+```
+
+##### `getResumePresignedUrl(s3Url)`
+Generates temporary pre-signed URL for secure file access.
+
+```javascript
+/**
+ * Generate pre-signed URL for S3 object
+ * @param {string} s3Url - Full S3 URL from database
+ * @returns {Promise<string>} - Pre-signed URL (valid for 7 days)
+ * @example
+ * const signedUrl = await getResumePresignedUrl("https://s3.../resume.pdf");
+ * // Returns: "https://s3.../resume.pdf?X-Amz-Signature=..."
+ */
+```
+
+**Security:**
+- Maximum expiration: 604,800 seconds (7 days, AWS SigV4 limit)
+- Signed with IAM credentials (not public)
+- Temporary access only (expires automatically)
+
+#### Main Server (`server/src/index.js`)
+
+**Purpose:** Express server with all API endpoints and AI search pipeline
+
+**Key Endpoints:**
+
+##### POST `/api/applications`
+Submit new adjunct application with resume upload.
+
+**Request:**
+```javascript
+// Content-Type: multipart/form-data
+{
+  fullName: "John Doe",
+  email: "john@example.com",
+  phone: "555-123-4567",
+  role: "Faculty", // or "Course Manager" or "None"
+  hired: "Applicant", // or "Hired"
+  notes: "Referred by Dean Smith",
+  resume: <PDF File>,
+  coverLetter: <PDF File> (optional)
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Application submitted successfully",
+  "applicantId": 123,
+  "resumeText": "Extracted text preview...",
+  "embeddingGenerated": true
+}
+```
+
+**Processing Pipeline:**
+1. Parse multipart form data with Multer
+2. Extract text from PDF using pdf-parse
+3. Upload resume to S3 bucket
+4. Generate 384-dimensional embedding
+5. Store in PostgreSQL with embedding vector
+6. Return success response
+
+##### POST `/api/ai-search`
+AI-powered candidate search by course/legal area.
+
+**Request:**
+```json
+{
+  "course": "Cyber Law",
+  "description": "Optional context: looking for GDPR expert"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "candidates": [
+    {
+      "id": 18,
+      "name": "Bryan Byrd",
+      "email": "bryan@example.com",
+      "reasoning": "DoD info security law + taught cybersecurity course at Georgetown",
+      "fit": "excellent",
+      "confidence": 5,
+      "resumeFile": "https://s3.../bryan_resume.pdf?X-Amz-Signature=..."
+    }
+  ],
+  "totalFound": 5,
+  "searchedApplicants": 102,
+  "course": "Cyber Law",
+  "cost": {
+    "totalCost": 0.0483,
+    "inputTokens": 253976,
+    "outputTokens": 17079,
+    "costPerCandidate": 0.0005,
+    "duration": 69.2
+  }
+}
+```
+
+**AI Pipeline:**
+```
+1. Generate embedding for search query
+   ↓
+2. Vector similarity search (pgvector)
+   SELECT * FROM resumes 
+   ORDER BY embedding <=> $queryEmbedding 
+   LIMIT 200
+   ↓
+3. Batch candidates into groups of 15
+   ↓
+4. Send each batch to GPT-4o-mini with strict system prompt
+   ↓
+5. Parse confidence scores + reasoning
+   ↓
+6. Filter candidates (confidence >= 4)
+   ↓
+7. Generate pre-signed URLs for resumes
+   ↓
+8. Return ranked results with cost metrics
+```
+
+**Confidence Scoring System:**
+- **5 (Exceptional):** Nationally recognized expert, 10+ years direct experience, publications
+- **4 (Qualified):** Taught specific course OR 5+ years primary practice OR published work
+- **3 (Transferable):** Related skills, topic not primary focus
+- **2 (Weak):** Tangential connection
+- **1 (Minimal):** Little to no relevance
+
+**Anti-Inflation Rules:**
+- "When in doubt, choose LOWER confidence"
+- "Be critical, not generous"
+- Direct experience required for 4+
+
+##### GET `/api/admin/applicants`
+Get all applicants with optional search (requires TAMU email).
+
+**Query Parameters:**
+```
+?search=john  // Search by name, email, phone, or ID
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "applicants": [
+    {
+      "applicant_id": 123,
+      "name": "John Doe",
+      "email": "john@example.com",
+      "phone": "555-123-4567",
+      "note": "Referred by Dean",
+      "hired": false,
+      "role": "Faculty",
+      "created_at": "2025-10-10T12:00:00Z",
+      "resume_file": "https://s3.../resume.pdf",
+      "cover_letter_file": "https://s3.../cover.pdf"
+    }
+  ]
+}
+```
+
+##### PUT `/api/admin/applicants/:id`
+Update applicant details (requires TAMU email).
+
+**Request:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "phone": "555-123-4567",
+  "note": "Updated note",
+  "hired": true,
+  "role": "Course Manager"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Applicant updated successfully",
+  "applicant": { /* updated data */ }
+}
+```
+
+##### DELETE `/api/admin/applicants/:id`
+Delete applicant and associated resume (requires TAMU email).
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Applicant and resume deleted successfully"
+}
+```
+
+**Cascade Behavior:** Deletes from both `applicants` and `resumes` tables (CASCADE constraint)
+
+### Database Schema
+
+#### `applicants` Table
+```sql
+CREATE TABLE applicants (
+  applicant_id    SERIAL PRIMARY KEY,
+  name            VARCHAR(200) NOT NULL,
+  email           VARCHAR(200) UNIQUE NOT NULL,
+  phone           VARCHAR(50),
+  note            TEXT,
+  hired           BOOLEAN DEFAULT FALSE,
+  role            VARCHAR(50) DEFAULT 'None' 
+                  CHECK (role IN ('Faculty', 'Course Manager', 'None')),
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `resumes` Table
+```sql
+CREATE TABLE resumes (
+  resume_id           SERIAL PRIMARY KEY,
+  applicant_id        INT REFERENCES applicants(applicant_id) 
+                      ON DELETE CASCADE,
+  resume_file         VARCHAR(500),  -- S3 URL
+  cover_letter_file   VARCHAR(500),  -- S3 URL
+  extracted_text      TEXT,
+  embedding           vector(384),   -- pgvector type
+  uploaded_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Vector similarity index
+CREATE INDEX resumes_embedding_idx 
+  ON resumes USING ivfflat (embedding vector_cosine_ops) 
+  WITH (lists = 100);
+```
+
+#### `chat_sessions` Table
+```sql
+CREATE TABLE chat_sessions (
+  session_id      SERIAL PRIMARY KEY,
+  title           VARCHAR(500) NOT NULL,
+  created_by_email VARCHAR(200) NOT NULL,
+  created_by_name VARCHAR(200),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### `chat_messages` Table
+```sql
+CREATE TABLE chat_messages (
+  message_id      SERIAL PRIMARY KEY,
+  session_id      INT NOT NULL 
+                  REFERENCES chat_sessions(session_id) 
+                  ON DELETE CASCADE,
+  role            VARCHAR(20) NOT NULL 
+                  CHECK (role IN ('user', 'assistant')),
+  content         TEXT NOT NULL,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Environment Variables
+
+**Required Variables:**
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/dbname?ssl=true
+
+# Server
+PORT=4000
+NODE_ENV=production
+
+# OpenAI
+OPENAI_API_KEY=sk-...
+
+# AWS S3
+AWS_REGION=us-east-2
+S3_BUCKET_NAME=resume-storage-tamu-law
+# AWS credentials loaded from ~/.aws/credentials
+
+# Azure AD (for SSO)
+AZURE_AD_CLIENT_ID=...
+AZURE_AD_CLIENT_SECRET=...
+AZURE_AD_TENANT_ID=...
+AZURE_AD_REDIRECT_URI=https://your-domain.com/auth/callback
+
+# Session
+SESSION_SECRET=random-secret-here
+REDIS_URL=redis://localhost:6379  # Optional, uses MemoryStore if not set
+
+# AI Configuration
+SEARCH_LIMIT=200    # Number of candidates to retrieve from vector search
+BATCH_SIZE=15       # Candidates per GPT-4o-mini batch
+```
+
+### Frontend Components
+
+#### `ChatBot.jsx`
+AI-powered search interface with chat history.
+
+**Features:**
+- Session persistence (stored in PostgreSQL)
+- Markdown rendering for clickable resume links
+- Loading states with animations
+- Error handling with user-friendly messages
+- Responsive design for mobile
+
+#### `AdminPanel.jsx`
+Full CRUD interface for managing applicants.
+
+**Features:**
+- Inline editing (click to edit name, email, phone, note)
+- Dropdown selection for role and status
+- CSV export functionality
+- Search by name, email, phone, ID
+- Delete confirmation modal
+- Real-time data updates
+
+#### `TopBar.jsx`
+Navigation header with authentication status.
+
+**Features:**
+- User profile display (name, email from Azure AD)
+- Logout button
+- Responsive mobile menu
+- TAMU Law branding
+
+#### `TileCard.jsx`
+Reusable card component for landing page tiles.
+
+**Props:**
+```javascript
+<TileCard 
+  title="AI Chatbot"
+  description="Search for qualified candidates"
+  icon="🤖"
+  link="/chatbot"
+/>
+```
+
 ## API Documentation
 
 ### POST /api/applications
@@ -1125,26 +1585,193 @@ frontend/
 
 ---
 
-## Credits
+## Credits and Attribution
 
 ### Project Team
-- **Ryan Mohammadian** – Schedule Coordinator  
-- **Adeeb Momin** – Scope Coordinator  
-- **Anik Momin** – Risk Coordinator & Lead Developer
-- **Mitchell Good** – Stakeholder Management Coordinator  
-- **Abhinav Devireddy** – Quality Coordinator  
+- **Anik Momin** – Risk Coordinator & Lead Developer (Backend, AI Pipeline, AWS Infrastructure)
+- **Mitchell Good** – Stakeholder Management Coordinator (Requirements, Frontend Design)
+- **Adeeb Momin** – Scope Coordinator (Database Schema, API Design)
+- **Abhinav Devireddy** – Quality Coordinator (Testing, Documentation)
+- **Ryan Mohammadian** – Schedule Coordinator (Project Management, Deployment)
 
 ### Faculty and Sponsors
-- **Steven Vaughn** – Project Sponsor, Director of Graduate Programs (TAMU Law)  
-- **Dr. Pauline Wade** – Course Instructor, Professor of Practice (CSCE)  
-- **Brady Kincaid Testa** – Teaching Assistant (CSCE)
+- **Steven Vaughn** – Project Sponsor, Director of Graduate Programs (TAMU Law)
+- **Dr. Pauline Wade** – Course Instructor, Professor of Practice (CSCE 482)
+- **Brady Kincaid Testa** – Teaching Assistant (CSCE 482)
 
-### Technologies
-- **OpenAI** - GPT-4o-mini API
-- **Hugging Face** - Transformer models
-- **PostgreSQL** - pgvector extension
-- **React** - Frontend framework
-- **Node.js** - Backend runtime
+### Open Source Technologies
+
+#### Backend Dependencies
+- **[@aws-sdk/client-s3](https://github.com/aws/aws-sdk-js-v3)** (v3.914.0) - AWS S3 file uploads/downloads
+  - *License:* Apache-2.0
+  - *Usage:* Resume file storage and pre-signed URL generation
+  
+- **[@aws-sdk/s3-request-presigner](https://github.com/aws/aws-sdk-js-v3)** (v3.914.0) - S3 pre-signed URLs
+  - *License:* Apache-2.0
+  - *Usage:* Temporary secure access to resume files (7-day expiration)
+
+- **[@azure/msal-node](https://github.com/AzureAD/microsoft-authentication-library-for-js)** (v3.8.1) - Microsoft Authentication Library
+  - *License:* MIT
+  - *Usage:* Azure AD OAuth2 authentication with TAMU NetID SSO
+
+- **[@xenova/transformers](https://github.com/xenova/transformers.js)** (v2.17.2) - Machine learning models in Node.js
+  - *License:* Apache-2.0
+  - *Usage:* Local embedding generation (all-MiniLM-L6-v2 model, 384 dimensions)
+  - *Note:* No GPU required, runs on CPU efficiently
+
+- **[OpenAI Node.js SDK](https://github.com/openai/openai-node)** (v6.3.0) - OpenAI API client
+  - *License:* Apache-2.0
+  - *Usage:* GPT-4o-mini AI analysis for candidate-course matching
+
+- **[Express.js](https://expressjs.com/)** (v4.19.2) - Web application framework
+  - *License:* MIT
+  - *Usage:* RESTful API server, routing, middleware
+
+- **[PostgreSQL (pg)](https://node-postgres.com/)** (v8.16.3) - PostgreSQL client
+  - *License:* MIT
+  - *Usage:* Database connection pooling, parameterized queries
+
+- **[Multer](https://github.com/expressjs/multer)** (v2.0.2) - File upload middleware
+  - *License:* MIT
+  - *Usage:* PDF resume/cover letter uploads (10MB limit)
+
+- **[pdf-parse](https://www.npmjs.com/package/pdf-parse)** (v2.2.9) - PDF text extraction
+  - *License:* MIT
+  - *Usage:* Automatic text extraction from uploaded PDFs
+
+- **[express-session](https://github.com/expressjs/session)** (v1.18.2) - Session middleware
+  - *License:* MIT
+  - *Usage:* User authentication sessions
+
+- **[connect-redis](https://github.com/tj/connect-redis)** (v9.0.0) - Redis session store
+  - *License:* MIT
+  - *Usage:* Persistent session storage in production
+
+- **[Redis](https://github.com/redis/node-redis)** (v5.9.0) - Redis client
+  - *License:* MIT
+  - *Usage:* Session persistence across server restarts
+
+#### Frontend Dependencies
+- **[React](https://react.dev/)** (v19.1.1) - UI library
+  - *License:* MIT
+  - *Usage:* Component-based UI, hooks, state management
+
+- **[React Router](https://reactrouter.com/)** (v7.9.4) - Client-side routing
+  - *License:* MIT
+  - *Usage:* SPA navigation, protected routes
+
+- **[react-markdown](https://github.com/remarkjs/react-markdown)** (v10.1.0) - Markdown renderer
+  - *License:* MIT
+  - *Usage:* Clickable resume links in chatbot responses
+
+- **[Vite](https://vitejs.dev/)** (v5.4.20) - Build tool and dev server
+  - *License:* MIT
+  - *Usage:* Fast HMR, optimized production builds
+
+#### Database & Infrastructure
+- **[PostgreSQL](https://www.postgresql.org/)** (v16.8) - Relational database
+  - *License:* PostgreSQL License (similar to MIT)
+  - *Usage:* Primary data store, ACID transactions
+
+- **[pgvector](https://github.com/pgvector/pgvector)** (v0.8.0) - Vector similarity search extension
+  - *License:* PostgreSQL License
+  - *Usage:* Fast semantic search with IVFFlat indexing
+
+- **[Docker](https://www.docker.com/)** & **[Docker Compose](https://docs.docker.com/compose/)** - Containerization
+  - *License:* Apache-2.0
+  - *Usage:* Local development PostgreSQL with pgvector
+
+- **[AWS RDS](https://aws.amazon.com/rds/)** - Managed PostgreSQL
+  - *License:* Commercial (AWS)
+  - *Usage:* Production database with automatic backups, encryption
+
+- **[AWS S3](https://aws.amazon.com/s3/)** - Object storage
+  - *License:* Commercial (AWS)
+  - *Usage:* Resume file storage with encryption at rest
+
+### AI Models and Services
+
+#### OpenAI GPT-4o-mini
+- **Model:** `gpt-4o-mini` (2024-07-18)
+- **Provider:** OpenAI
+- **Usage:** AI-powered candidate analysis and matching
+- **Pricing:** $0.150 per 1M input tokens, $0.600 per 1M output tokens
+- **Features Used:**
+  - System prompt engineering for strict confidence scoring
+  - Batch processing (15 candidates per batch)
+  - JSON-formatted structured outputs
+  - Token usage tracking and cost calculation
+- **API Documentation:** https://platform.openai.com/docs/models/gpt-4o-mini
+
+#### Hugging Face Transformers
+- **Model:** [sentence-transformers/all-MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2)
+- **Provider:** Hugging Face / sentence-transformers
+- **License:** Apache-2.0
+- **Usage:** Semantic text embeddings for vector search
+- **Specifications:**
+  - Embedding dimensions: 384
+  - Max sequence length: 256 tokens
+  - Model size: ~23MB
+  - Runs on CPU (no GPU required)
+- **Performance:** ~50ms per embedding generation on modern CPUs
+
+### AI Tools Used in Development
+
+This project was developed with assistance from generative AI tools for code generation, debugging, and documentation:
+
+- **GitHub Copilot** - Code completion, boilerplate generation, debugging assistance (~30-40% of code with human review)
+- **ChatGPT (GPT-4)** - Architecture planning, documentation, error troubleshooting (~20-30% of docs with human editing)
+- **Claude (Anthropic)** - Complex algorithm implementations, code review, optimization suggestions
+
+**Important Note:** All AI-generated code and documentation was reviewed, tested, modified, and validated by human developers. The final implementation decisions, architecture, and system design are the work of the project team
+
+### Third-Party Resources
+
+#### Design Assets
+- **TAMU Law Building Image** - Texas A&M University School of Law
+  - *Source:* Official TAMU Law website
+  - *Usage:* Landing page hero banner background
+  - *Permission:* Educational use for official TAMU projects
+
+- **TAMU Law Wordmark** - Texas A&M University Brand Guidelines
+  - *Source:* TAMU Brand Portal
+  - *Usage:* Login page and navigation branding
+  - *License:* TAMU trademark, used with permission for official projects
+
+#### Fonts
+- **Oswald** - Google Fonts
+  - *License:* SIL Open Font License (OFL)
+  - *Designer:* Vernon Adams, Kalapi Gajjar, Alexei Vanyashin
+  - *Usage:* Headings and UI typography
+
+#### Development Tools
+- **Visual Studio Code** - Code editor with GitHub Copilot integration
+- **Postman** - API testing and documentation
+- **pgAdmin 4** - PostgreSQL database management
+- **AWS Console** - Cloud infrastructure management
+- **Azure Portal** - Azure AD application configuration
+
+### Learning Resources and Documentation
+
+The following resources were consulted during development:
+
+- **PostgreSQL pgvector Documentation:** https://github.com/pgvector/pgvector
+- **OpenAI API Reference:** https://platform.openai.com/docs
+- **React Documentation:** https://react.dev/learn
+- **Express.js Guide:** https://expressjs.com/en/guide
+- **AWS SDK Documentation:** https://docs.aws.amazon.com/sdk-for-javascript/
+- **Azure MSAL Documentation:** https://learn.microsoft.com/en-us/entra/identity-platform/
+- **Stack Overflow:** Various troubleshooting discussions (specific threads cited in code comments where applicable)
+
+### Acknowledgments
+
+We acknowledge the use of generative AI tools in this project. While AI assisted with code generation and documentation, all code has been reviewed, tested, and modified by human developers. The final implementation decisions, architecture, and system design are the work of the project team.
+
+Special thanks to:
+- **TAMU School of Law** for providing the problem statement and project sponsorship
+- **CSCE 482 Teaching Staff** for guidance and feedback throughout development
+- **OpenAI and Hugging Face** for providing accessible AI/ML APIs and models
+- **Open Source Community** for the excellent libraries and tools used in this project
 
 ---
 

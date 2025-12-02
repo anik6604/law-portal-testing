@@ -1,3 +1,11 @@
+/**
+ * Authentication Module - Azure AD OAuth2 with MSAL
+ * 
+ * Implements TAMU NetID SSO integration with Redis session management.
+ * 
+ * @author TAMU CSCE 482 Capstone Team (Fall 2025)
+ */
+
 import { ConfidentialClientApplication } from '@azure/msal-node';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
